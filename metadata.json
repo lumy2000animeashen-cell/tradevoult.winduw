@@ -1,0 +1,6 @@
+{
+  "name": "Trading Journal",
+  "description": "A professional, desktop-optimized web application for recording, tracking, and analyzing financial trades, setups, and psychological factors.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
