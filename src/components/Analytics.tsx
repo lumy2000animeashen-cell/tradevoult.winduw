@@ -21,27 +21,102 @@ import {
   Pie, 
   Cell 
 } from 'recharts';
-import { TrendingUp, Award, BrainCircuit, Landmark, BarChart2 } from 'lucide-react';
+import { TrendingUp, Award, BrainCircuit, Landmark, BarChart2, Activity, Percent, ShieldCheck, TrendingDown, HelpCircle } from 'lucide-react';
 
 interface AnalyticsProps {
   trades: Trade[];
   lang: Language;
+  startingBalance: number;
 }
 
-export default function Analytics({ trades, lang }: AnalyticsProps) {
+export default function Analytics({ trades, lang, startingBalance }: AnalyticsProps) {
   const t = translations[lang];
 
   const closedTrades = useMemo(() => {
     return trades.filter(tr => tr.status !== TradeStatus.OPEN);
   }, [trades]);
 
-  // 1. Calculate Cumulative Equity Curve (Starting Balance = $10,000)
+  // Calculations for advanced metrics
+  const advancedStats = useMemo(() => {
+    const closedCount = closedTrades.length;
+    if (closedCount === 0) {
+      return {
+        profitFactor: 0,
+        expectancy: 0,
+        maxDrawdown: 0,
+        maxDrawdownPercent: 0,
+        sharpeRatio: 0,
+        recoveryFactor: 0,
+        netProfit: 0,
+      };
+    }
+
+    const wonTrades = closedTrades.filter(tr => tr.status === TradeStatus.WON);
+    const lostTrades = closedTrades.filter(tr => tr.status === TradeStatus.LOST);
+
+    const totalProfit = closedTrades.reduce((sum, tr) => sum + tr.pnl, 0);
+    const totalWinAmount = wonTrades.reduce((sum, tr) => sum + tr.pnl, 0);
+    const totalLossAmount = Math.abs(lostTrades.reduce((sum, tr) => sum + tr.pnl, 0));
+
+    // Profit Factor
+    const profitFactor = totalLossAmount > 0 ? totalWinAmount / totalLossAmount : totalWinAmount > 0 ? 99.9 : 0;
+
+    // Expectancy (Average PNL per trade)
+    const expectancy = closedCount > 0 ? totalProfit / closedCount : 0;
+
+    // Maximum Drawdown (absolute and percentage from peak starting at startingBalance base)
+    let peak = startingBalance;
+    let currentBalance = startingBalance;
+    let maxDrawdownVal = 0;
+    let maxDrawdownPct = 0;
+
+    const chronologicalTrades = [...closedTrades].sort(
+      (a, b) => new Date(a.dateEntry).getTime() - new Date(b.dateEntry).getTime()
+    );
+
+    chronologicalTrades.forEach(tr => {
+      currentBalance += tr.pnl;
+      if (currentBalance > peak) {
+        peak = currentBalance;
+      }
+      const ddVal = peak - currentBalance;
+      const ddPct = peak > 0 ? (ddVal / peak) * 100 : 0;
+
+      if (ddVal > maxDrawdownVal) {
+        maxDrawdownVal = ddVal;
+      }
+      if (ddPct > maxDrawdownPct) {
+        maxDrawdownPct = ddPct;
+      }
+    });
+
+    // Sharpe Ratio = Average return / Standard Deviation
+    const avgPnl = expectancy;
+    const variance = chronologicalTrades.reduce((sum, tr) => sum + Math.pow(tr.pnl - avgPnl, 2), 0) / closedCount;
+    const stdDev = Math.sqrt(variance);
+    const sharpeRatio = stdDev > 0 ? avgPnl / stdDev : 0;
+
+    // Recovery Factor = Net Profit / Max Drawdown Value
+    const recoveryFactor = maxDrawdownVal > 0 ? totalProfit / maxDrawdownVal : totalProfit > 0 ? 99.9 : 0;
+
+    return {
+      profitFactor,
+      expectancy,
+      maxDrawdown: maxDrawdownVal,
+      maxDrawdownPercent: maxDrawdownPct,
+      sharpeRatio,
+      recoveryFactor,
+      netProfit: totalProfit
+    };
+  }, [closedTrades, startingBalance]);
+
+  // 1. Calculate Cumulative Equity Curve (Starting Balance from props)
   const equityData = useMemo(() => {
     const sortedTrades = [...closedTrades].sort(
       (a, b) => new Date(a.dateEntry).getTime() - new Date(b.dateEntry).getTime()
     );
 
-    let currentBalance = 10000;
+    let currentBalance = startingBalance;
     const data = [{
       index: 0,
       balance: currentBalance,
@@ -66,7 +141,7 @@ export default function Analytics({ trades, lang }: AnalyticsProps) {
     });
 
     return data;
-  }, [closedTrades, lang]);
+  }, [closedTrades, lang, startingBalance]);
 
   // 2. Setup/Strategy Performance
   const setupPerformanceData = useMemo(() => {
@@ -197,6 +272,79 @@ export default function Analytics({ trades, lang }: AnalyticsProps) {
         </div>
       ) : (
         <>
+          {/* ADVANCED STATS FIVE-COLUMN GRID */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Profit Factor */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-1">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                <Percent size={11} className="text-emerald-400" />
+                <span>{lang === 'fa' ? 'ضریب سود (Profit Factor)' : 'Profit Factor'}</span>
+              </span>
+              <p className="text-2xl font-black font-sans text-white tracking-tight">
+                {advancedStats.profitFactor === 99.9 ? '∞' : advancedStats.profitFactor.toFixed(2)}
+              </p>
+              <p className="text-[10px] text-slate-500 font-medium leading-normal">
+                {lang === 'fa' ? 'مطلوب: بالای ۱.۵ (قدرت سودآوری)' : 'Optimal: > 1.5 (system profitability)'}
+              </p>
+            </div>
+
+            {/* Expectancy */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-1">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                <Activity size={11} className="text-cyan-400" />
+                <span>{lang === 'fa' ? 'امید ریاضی (Expectancy)' : 'Expectancy'}</span>
+              </span>
+              <p className={`text-2xl font-black font-mono tracking-tight ${advancedStats.expectancy >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {advancedStats.expectancy >= 0 ? '+' : ''}${advancedStats.expectancy.toFixed(1)}
+              </p>
+              <p className="text-[10px] text-slate-500 font-medium leading-normal">
+                {lang === 'fa' ? 'سود پیش‌بینی شده در هر تک معامله' : 'Expected profit margin per single trade'}
+              </p>
+            </div>
+
+            {/* Max Drawdown */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-1">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                <TrendingDown size={11} className="text-rose-400" />
+                <span>{lang === 'fa' ? 'افت سرمایه (Max DD)' : 'Max Drawdown'}</span>
+              </span>
+              <p className="text-2xl font-black font-mono text-white tracking-tight">
+                {advancedStats.maxDrawdownPercent.toFixed(1)}%
+              </p>
+              <p className="text-[10px] text-slate-500 font-medium leading-normal">
+                {lang === 'fa' ? `افت از اوج سرمایه: $${Math.round(advancedStats.maxDrawdown)}` : `Peak-to-trough: $${Math.round(advancedStats.maxDrawdown)}`}
+              </p>
+            </div>
+
+            {/* Sharpe Ratio */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-1">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                <ShieldCheck size={11} className="text-indigo-400" />
+                <span>{lang === 'fa' ? 'نسبت شارپ (Sharpe)' : 'Sharpe Ratio'}</span>
+              </span>
+              <p className="text-2xl font-black font-sans text-white tracking-tight">
+                {advancedStats.sharpeRatio.toFixed(2)}
+              </p>
+              <p className="text-[10px] text-slate-500 font-medium leading-normal">
+                {lang === 'fa' ? 'سنجش ریسک؛ بالای ۱ ایده آل است' : 'Risk adjusted return. >1.0 is ideal'}
+              </p>
+            </div>
+
+            {/* Recovery Factor */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-1 col-span-2 lg:col-span-1">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                <HelpCircle size={11} className="text-amber-400" />
+                <span>{lang === 'fa' ? 'ضریب بازیابی (Recovery)' : 'Recovery Factor'}</span>
+              </span>
+              <p className="text-2xl font-black font-sans text-white tracking-tight">
+                {advancedStats.recoveryFactor === 99.9 ? '∞' : advancedStats.recoveryFactor.toFixed(2)}
+              </p>
+              <p className="text-[10px] text-slate-500 font-medium leading-normal">
+                {lang === 'fa' ? 'توانایی جبران دراودان؛ بالای ۳ عالی' : 'Recovery capability. >3.0 is excellent'}
+              </p>
+            </div>
+          </div>
+
           {/* 1. Equity Curve Growth chart */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <div className="flex items-center gap-2 mb-4">
@@ -214,7 +362,15 @@ export default function Analytics({ trades, lang }: AnalyticsProps) {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis dataKey="date" stroke="#64748b" />
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#64748b" 
+                    tick={{ fontSize: 9 }}
+                    height={45}
+                    angle={-15}
+                    textAnchor="end"
+                    interval="preserveStartEnd"
+                  />
                   <YAxis stroke="#64748b" domain={['auto', 'auto']} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px' }}
@@ -242,10 +398,17 @@ export default function Analytics({ trades, lang }: AnalyticsProps) {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={setupPerformanceData} layout="vertical" margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+                    <BarChart data={setupPerformanceData} layout="vertical" margin={{ top: 5, right: 10, left: 15, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
                       <XAxis type="number" stroke="#64748b" />
-                      <YAxis dataKey="name" type="category" stroke="#64748b" width={80} />
+                      <YAxis 
+                        dataKey="name" 
+                        type="category" 
+                        stroke="#64748b" 
+                        width={120} 
+                        tick={{ fontSize: 9 }} 
+                        textAnchor="end"
+                      />
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px' }}
                         labelClassName="text-slate-400 font-bold text-xs"
@@ -277,8 +440,15 @@ export default function Analytics({ trades, lang }: AnalyticsProps) {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={emotionPerformanceData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="emotionName" stroke="#64748b" />
-                      <YAxis stroke="#64748b" />
+                      <XAxis 
+                        dataKey="emotionName" 
+                        stroke="#64748b" 
+                        tick={{ fontSize: 9 }}
+                        height={45}
+                        angle={-15}
+                        textAnchor="end"
+                      />
+                      <YAxis stroke="#64748b" tick={{ fontSize: 9 }} />
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px' }}
                         labelClassName="text-slate-400 font-bold"
@@ -363,8 +533,15 @@ export default function Analytics({ trades, lang }: AnalyticsProps) {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={assetWinRateData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="assetName" stroke="#64748b" />
-                      <YAxis stroke="#64748b" domain={[0, 100]} />
+                      <XAxis 
+                        dataKey="assetName" 
+                        stroke="#64748b" 
+                        tick={{ fontSize: 9 }}
+                        height={45}
+                        angle={-15}
+                        textAnchor="end"
+                      />
+                      <YAxis stroke="#64748b" domain={[0, 100]} tick={{ fontSize: 9 }} />
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px' }}
                         formatter={(value) => [`${value}%`, (lang === 'fa' ? 'نرخ برد' : 'Win Rate')]}

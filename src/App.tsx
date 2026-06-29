@@ -13,7 +13,8 @@ import {
   TradeDirection, 
   AssetClass, 
   TradingSession, 
-  EmotionTag 
+  EmotionTag,
+  TradingAccount
 } from './types';
 import { translations, Language } from './localization';
 import Dashboard from './components/Dashboard';
@@ -23,6 +24,8 @@ import Analytics from './components/Analytics';
 import RiskCalculator from './components/RiskCalculator';
 import DailyNotes from './components/DailyNotes';
 import ExportImport from './components/ExportImport';
+import LockScreen from './components/LockScreen';
+import AccountSetupModal from './components/AccountSetupModal';
 import { 
   BarChart3, 
   BookOpen, 
@@ -76,7 +79,7 @@ const defaultGoals = (lang: Language): TradingGoal[] => {
       id: 'g1', 
       title: lang === 'fa' ? 'سود هدف ماه ژوئن' : 'June Monthly Milestone', 
       targetAmount: 1500, 
-      currentProgress: 680, 
+      currentProgress: 0, 
       startDate: '2026-06-01', 
       endDate: '2026-06-30', 
       isCompleted: false 
@@ -85,10 +88,10 @@ const defaultGoals = (lang: Language): TradingGoal[] => {
       id: 'g2', 
       title: lang === 'fa' ? 'چالش منضبط ماندن هفتگی' : 'Weekly Discipline Target', 
       targetAmount: 300, 
-      currentProgress: 300, 
+      currentProgress: 0, 
       startDate: '2026-06-22', 
       endDate: '2026-06-28', 
-      isCompleted: true 
+      isCompleted: false 
     }
   ];
 };
@@ -103,6 +106,67 @@ export default function App() {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [goals, setGoals] = useState<TradingGoal[]>([]);
 
+  // Multi-Account States
+  const [accounts, setAccounts] = useState<TradingAccount[]>(() => {
+    const saved = localStorage.getItem('tj_accounts');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    
+    // Migration from old accounts setup:
+    const oldName = localStorage.getItem('tj_account_name') || '';
+    const oldBalanceStr = localStorage.getItem('tj_starting_balance');
+    const oldBalance = oldBalanceStr ? parseFloat(oldBalanceStr) : 10000;
+    
+    if (oldName) {
+      const migrated: TradingAccount = {
+        id: 'default',
+        name: oldName,
+        startingBalance: oldBalance
+      };
+      const initial = [migrated];
+      localStorage.setItem('tj_accounts', JSON.stringify(initial));
+      localStorage.setItem('tj_current_account_id', 'default');
+      return initial;
+    }
+    return [];
+  });
+
+  const [currentAccountId, setCurrentAccountId] = useState<string>(() => {
+    return localStorage.getItem('tj_current_account_id') || 'default';
+  });
+
+  const currentAccount = React.useMemo(() => {
+    return accounts.find(acc => acc.id === currentAccountId) || accounts[0];
+  }, [accounts, currentAccountId]);
+
+  const accountName = currentAccount ? currentAccount.name : '';
+  const startingBalance = currentAccount ? currentAccount.startingBalance : 10000;
+
+  // Helper to determine the dynamic storage keys for the active account
+  const getAccountStorageKeys = (accId: string) => {
+    if (accId === 'default') {
+      return {
+        trades: 'tj_trades',
+        entries: 'tj_entries',
+        checklist: 'tj_checklist',
+        goals: 'tj_goals'
+      };
+    }
+    return {
+      trades: `tj_trades_${accId}`,
+      entries: `tj_entries_${accId}`,
+      checklist: `tj_checklist_${accId}`,
+      goals: `tj_goals_${accId}`
+    };
+  };
+
+  // Passcode Smart Lock states
+  const [passcode, setPasscode] = useState<string>(() => localStorage.getItem('tj_passcode') || '');
+  const [isLocked, setIsLocked] = useState<boolean>(() => !!localStorage.getItem('tj_passcode'));
+
   // Dialog Forms triggers
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
@@ -113,7 +177,89 @@ export default function App() {
   // Time ticker state
   const [currentTime, setCurrentTime] = useState('');
 
-  // 2. Load initially from Local Storage
+  const handleSetPasscode = (newPasscode: string) => {
+    setPasscode(newPasscode);
+    if (newPasscode) {
+      localStorage.setItem('tj_passcode', newPasscode);
+    } else {
+      localStorage.removeItem('tj_passcode');
+      setIsLocked(false);
+    }
+  };
+
+  const handleSaveAccountSetup = (name: string, balance: number) => {
+    const newAccount: TradingAccount = {
+      id: 'default',
+      name,
+      startingBalance: balance
+    };
+    const updatedAccounts = [newAccount];
+    setAccounts(updatedAccounts);
+    setCurrentAccountId('default');
+    localStorage.setItem('tj_accounts', JSON.stringify(updatedAccounts));
+    localStorage.setItem('tj_current_account_id', 'default');
+    // Also save legacy items for fallback
+    localStorage.setItem('tj_account_name', name);
+    localStorage.setItem('tj_starting_balance', balance.toString());
+  };
+
+  const handleUpdateCurrentAccount = (name: string, balance: number) => {
+    const updatedAccounts = accounts.map(acc => {
+      if (acc.id === currentAccountId) {
+        return { ...acc, name, startingBalance: balance };
+      }
+      return acc;
+    });
+    setAccounts(updatedAccounts);
+    localStorage.setItem('tj_accounts', JSON.stringify(updatedAccounts));
+    // Also update legacy items if updating the default/first account
+    if (currentAccountId === 'default') {
+      localStorage.setItem('tj_account_name', name);
+      localStorage.setItem('tj_starting_balance', balance.toString());
+    }
+  };
+
+  const handleCreateNewAccount = (name: string, balance: number) => {
+    const newId = `acc_${Date.now()}`;
+    const newAccount: TradingAccount = {
+      id: newId,
+      name,
+      startingBalance: balance
+    };
+    const updatedAccounts = [...accounts, newAccount];
+    setAccounts(updatedAccounts);
+    setCurrentAccountId(newId);
+    localStorage.setItem('tj_accounts', JSON.stringify(updatedAccounts));
+    localStorage.setItem('tj_current_account_id', newId);
+  };
+
+  const handleSwitchAccount = (id: string) => {
+    setCurrentAccountId(id);
+    localStorage.setItem('tj_current_account_id', id);
+  };
+
+  const handleDeleteAccount = (id: string) => {
+    if (accounts.length <= 1) {
+      return;
+    }
+    const updatedAccounts = accounts.filter(acc => acc.id !== id);
+    setAccounts(updatedAccounts);
+    localStorage.setItem('tj_accounts', JSON.stringify(updatedAccounts));
+
+    const keys = getAccountStorageKeys(id);
+    localStorage.removeItem(keys.trades);
+    localStorage.removeItem(keys.entries);
+    localStorage.removeItem(keys.checklist);
+    localStorage.removeItem(keys.goals);
+
+    if (currentAccountId === id) {
+      const remainingAccId = updatedAccounts[0].id;
+      setCurrentAccountId(remainingAccId);
+      localStorage.setItem('tj_current_account_id', remainingAccId);
+    }
+  };
+
+  // 2. Load initially and on account changes
   useEffect(() => {
     // Language
     const savedLang = localStorage.getItem('tj_lang') as Language;
@@ -121,37 +267,47 @@ export default function App() {
       setLang(savedLang);
     }
 
-    // Trades
-    const savedTrades = localStorage.getItem('tj_trades');
-    if (savedTrades) {
-      setTrades(JSON.parse(savedTrades));
-    } else {
-      // Load seed data on first load to give a stunning visual experience immediately
-      handleSeedDemoData();
-    }
+    if (accounts.length > 0 && currentAccount) {
+      const keys = getAccountStorageKeys(currentAccount.id);
 
-    // Daily entries
-    const savedEntries = localStorage.getItem('tj_entries');
-    if (savedEntries) {
-      setDailyEntries(JSON.parse(savedEntries));
-    }
+      // Trades
+      const savedTrades = localStorage.getItem(keys.trades);
+      if (savedTrades) {
+        setTrades(JSON.parse(savedTrades));
+      } else {
+        setTrades([]);
+      }
 
-    // Checklist
-    const savedChecklist = localStorage.getItem('tj_checklist');
-    if (savedChecklist) {
-      setChecklist(JSON.parse(savedChecklist));
-    } else {
-      setChecklist(defaultChecklist(savedLang || 'fa'));
-    }
+      // Daily entries
+      const savedEntries = localStorage.getItem(keys.entries);
+      if (savedEntries) {
+        setDailyEntries(JSON.parse(savedEntries));
+      } else {
+        setDailyEntries([]);
+      }
 
-    // Goals
-    const savedGoals = localStorage.getItem('tj_goals');
-    if (savedGoals) {
-      setGoals(JSON.parse(savedGoals));
+      // Checklist
+      const savedChecklist = localStorage.getItem(keys.checklist);
+      if (savedChecklist) {
+        setChecklist(JSON.parse(savedChecklist));
+      } else {
+        setChecklist(defaultChecklist(savedLang || lang));
+      }
+
+      // Goals
+      const savedGoals = localStorage.getItem(keys.goals);
+      if (savedGoals) {
+        setGoals(JSON.parse(savedGoals));
+      } else {
+        setGoals(defaultGoals(savedLang || lang));
+      }
     } else {
-      setGoals(defaultGoals(savedLang || 'fa'));
+      setTrades([]);
+      setDailyEntries([]);
+      setChecklist(defaultChecklist(savedLang || lang));
+      setGoals(defaultGoals(savedLang || lang));
     }
-  }, []);
+  }, [currentAccountId, lang, accounts.length]);
 
   // Update clock
   useEffect(() => {
@@ -168,10 +324,78 @@ export default function App() {
     return () => clearInterval(interval);
   }, [lang]);
 
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Avoid shortcuts if typing in text inputs or textareas
+      const activeEl = document.activeElement;
+      if (
+        activeEl && (
+          activeEl.tagName === 'INPUT' || 
+          activeEl.tagName === 'TEXTAREA' || 
+          activeEl.tagName === 'SELECT'
+        )
+      ) {
+        return;
+      }
+
+      if (e.altKey || e.metaKey) {
+        let key = e.key.toLowerCase();
+        switch (key) {
+          case 'd':
+            e.preventDefault();
+            setActiveTab('dashboard');
+            break;
+          case 'l':
+            e.preventDefault();
+            setActiveTab('ledger');
+            break;
+          case 'a':
+            e.preventDefault();
+            setActiveTab('analytics');
+            break;
+          case 'c':
+            e.preventDefault();
+            setActiveTab('calculator');
+            break;
+          case 'j':
+            e.preventDefault();
+            setActiveTab('notes');
+            break;
+          case 's':
+            e.preventDefault();
+            setActiveTab('backup');
+            break;
+          case 'n':
+            e.preventDefault();
+            setEditingTrade(null);
+            setIsFormOpen(true);
+            break;
+          case 't':
+            e.preventDefault();
+            handleLanguageToggle();
+            break;
+          case 'k':
+            e.preventDefault();
+            if (passcode) {
+              setIsLocked(true);
+            }
+            break;
+          default:
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [passcode, lang]);
+
   // Sync to local storage on state edits
   const saveTradesToStorage = (updatedTrades: Trade[]) => {
     setTrades(updatedTrades);
-    localStorage.setItem('tj_trades', JSON.stringify(updatedTrades));
+    const keys = getAccountStorageKeys(currentAccountId);
+    localStorage.setItem(keys.trades, JSON.stringify(updatedTrades));
 
     // Also update dynamic goals based on overall P&L of June
     const totalJunePnl = updatedTrades
@@ -190,17 +414,19 @@ export default function App() {
       return goal;
     });
     setGoals(updatedGoals);
-    localStorage.setItem('tj_goals', JSON.stringify(updatedGoals));
+    localStorage.setItem(keys.goals, JSON.stringify(updatedGoals));
   };
 
   const saveEntriesToStorage = (updatedEntries: DailyJournalEntry[]) => {
     setDailyEntries(updatedEntries);
-    localStorage.setItem('tj_entries', JSON.stringify(updatedEntries));
+    const keys = getAccountStorageKeys(currentAccountId);
+    localStorage.setItem(keys.entries, JSON.stringify(updatedEntries));
   };
 
   const saveChecklistToStorage = (updatedChecklist: ChecklistItem[]) => {
     setChecklist(updatedChecklist);
-    localStorage.setItem('tj_checklist', JSON.stringify(updatedChecklist));
+    const keys = getAccountStorageKeys(currentAccountId);
+    localStorage.setItem(keys.checklist, JSON.stringify(updatedChecklist));
   };
 
   // 3. Operational Handlers
@@ -220,10 +446,8 @@ export default function App() {
   };
 
   const handleDeleteTrade = (id: string) => {
-    if (window.confirm(translations[lang].confirmDelete)) {
-      const updated = trades.filter(t => t.id !== id);
-      saveTradesToStorage(updated);
-    }
+    const updated = trades.filter(t => t.id !== id);
+    saveTradesToStorage(updated);
   };
 
   const handleEditTradeTrigger = (trade: Trade) => {
@@ -253,10 +477,11 @@ export default function App() {
     setChecklist(backup.checklist);
     setGoals(backup.goals);
 
-    localStorage.setItem('tj_trades', JSON.stringify(backup.trades));
-    localStorage.setItem('tj_entries', JSON.stringify(backup.dailyEntries));
-    localStorage.setItem('tj_checklist', JSON.stringify(backup.checklist));
-    localStorage.setItem('tj_goals', JSON.stringify(backup.goals));
+    const keys = getAccountStorageKeys(currentAccountId);
+    localStorage.setItem(keys.trades, JSON.stringify(backup.trades));
+    localStorage.setItem(keys.entries, JSON.stringify(backup.dailyEntries));
+    localStorage.setItem(keys.checklist, JSON.stringify(backup.checklist));
+    localStorage.setItem(keys.goals, JSON.stringify(backup.goals));
   };
 
   // Switch Language
@@ -486,8 +711,9 @@ export default function App() {
 
     setTrades(seedTrades);
     setDailyEntries(seedDailyEntries);
-    localStorage.setItem('tj_trades', JSON.stringify(seedTrades));
-    localStorage.setItem('tj_entries', JSON.stringify(seedDailyEntries));
+    const keys = getAccountStorageKeys(currentAccountId);
+    localStorage.setItem(keys.trades, JSON.stringify(seedTrades));
+    localStorage.setItem(keys.entries, JSON.stringify(seedDailyEntries));
 
     // Calculate goals progress update
     const totalPnl = seedTrades
@@ -505,11 +731,30 @@ export default function App() {
       return g;
     });
     setGoals(updatedGoals);
-    localStorage.setItem('tj_goals', JSON.stringify(updatedGoals));
+    localStorage.setItem(keys.goals, JSON.stringify(updatedGoals));
   };
 
   const isRtl = lang === 'fa';
   const t = translations[lang];
+
+  if (isLocked && passcode) {
+    return (
+      <LockScreen 
+        correctPasscode={passcode} 
+        lang={lang} 
+        onUnlock={() => setIsLocked(false)} 
+      />
+    );
+  }
+
+  if (!accountName) {
+    return (
+      <AccountSetupModal 
+        lang={lang} 
+        onSave={handleSaveAccountSetup} 
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#080a0f] flex flex-col antialiased">
@@ -661,7 +906,7 @@ export default function App() {
                 {lang === 'fa' ? 'ارزش کل حساب' : 'PORTFOLIO VALUE'}
               </p>
               <p className="text-xl font-black font-mono tracking-tight text-white">
-                ${(10000 + trades.reduce((sum, tr) => sum + tr.pnl - (tr.fee || 0), 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ${(startingBalance + trades.reduce((sum, tr) => sum + tr.pnl, 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
 
@@ -735,6 +980,8 @@ export default function App() {
                   trades={trades} 
                   goals={goals} 
                   lang={lang} 
+                  accountName={accountName}
+                  startingBalance={startingBalance}
                   onSelectDay={handleSelectDayFilter} 
                 />
               )}
@@ -754,6 +1001,7 @@ export default function App() {
                 <Analytics 
                   trades={trades} 
                   lang={lang} 
+                  startingBalance={startingBalance}
                 />
               )}
 
@@ -780,8 +1028,18 @@ export default function App() {
                   checklist={checklist} 
                   goals={goals} 
                   lang={lang} 
+                  passcode={passcode}
+                  accountName={accountName}
+                  startingBalance={startingBalance}
+                  onSetPasscode={handleSetPasscode}
                   onImportBackup={handleImportBackup} 
                   onLoadDemoData={handleSeedDemoData} 
+                  onUpdateAccount={handleUpdateCurrentAccount}
+                  accounts={accounts}
+                  currentAccountId={currentAccountId}
+                  onCreateAccount={handleCreateNewAccount}
+                  onSwitchAccount={handleSwitchAccount}
+                  onDeleteAccount={handleDeleteAccount}
                 />
               )}
             </motion.div>

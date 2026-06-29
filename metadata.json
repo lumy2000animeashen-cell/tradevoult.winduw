@@ -1,6 +1,6 @@
 {
-  "name": "Trading Journal",
-  "description": "A professional, desktop-optimized web application for recording, tracking, and analyzing financial trades, setups, and psychological factors.",
+  "name": "TradeVault",
+  "description": "TradeVault - A professional financial trading journal, calendar, dynamic analytics and psychology logger.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

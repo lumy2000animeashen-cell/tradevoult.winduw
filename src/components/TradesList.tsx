@@ -175,7 +175,6 @@ export default function TradesList({
             <option value="ALL">{lang === 'fa' ? 'همه وضعیت‌ها' : 'ALL STATUSES'}</option>
             <option value={TradeStatus.WON}>{lang === 'fa' ? 'سود ده (Won)' : 'WON'}</option>
             <option value={TradeStatus.LOST}>{lang === 'fa' ? 'زیان ده (Lost)' : 'LOST'}</option>
-            <option value={TradeStatus.BREAKEVEN}>{lang === 'fa' ? 'سر به سر (BE)' : 'BREAKEVEN'}</option>
             <option value={TradeStatus.OPEN}>{lang === 'fa' ? 'معاملات باز' : 'OPEN'}</option>
           </select>
 
@@ -225,7 +224,7 @@ export default function TradesList({
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
             <tr className="border-b border-slate-800 text-slate-500 text-[10px] font-black uppercase tracking-widest select-none bg-slate-950/20">
-              <th className="py-4 px-4 w-10"></th> {/* Expand arrow */}
+              <th className="py-4 px-4 w-10">{/* Expand arrow */}</th>
               <th className="py-4 px-3">{lang === 'fa' ? 'تاریخ و زمان' : 'DATE / TIME'}</th>
               <th className="py-4 px-3">{t.symbol}</th>
               <th className="py-4 px-3">{t.direction}</th>
@@ -284,7 +283,19 @@ export default function TradesList({
                       </td>
                       <td className="py-3.5 px-3 font-bold text-slate-100 tracking-wider uppercase font-mono">
                         <div className="flex flex-col">
-                          <span>{trade.symbol}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span>{trade.symbol}</span>
+                            {trade.grade && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                                trade.grade === 'A+' || trade.grade === 'A' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' :
+                                trade.grade === 'B' ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/20' :
+                                trade.grade === 'C' ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' :
+                                'bg-rose-500/15 text-rose-400 border border-rose-500/20'
+                              }`}>
+                                {trade.grade}
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10px] text-slate-500 font-normal mt-0.5">{getTranslatedAsset(trade.assetClass, lang)}</span>
                         </div>
                       </td>
@@ -363,21 +374,24 @@ export default function TradesList({
                                   </h4>
                                   <ul className="text-xs space-y-2 text-slate-300 bg-slate-900/40 border border-slate-800/80 p-3.5 rounded-xl font-mono">
                                     <li className="flex justify-between">
-                                      <span className="text-slate-500">{lang === 'fa' ? 'حد ضرر (Stop Loss)' : 'Stop Loss'}</span>
-                                      <span className="text-rose-400 font-semibold">{trade.stopLoss ? `$${trade.stopLoss.toLocaleString()}` : '-'}</span>
-                                    </li>
-                                    <li className="flex justify-between">
-                                      <span className="text-slate-500">{lang === 'fa' ? 'حد سود (Take Profit)' : 'Take Profit'}</span>
-                                      <span className="text-emerald-400 font-semibold">{trade.takeProfit ? `$${trade.takeProfit.toLocaleString()}` : '-'}</span>
+                                      <span className="text-slate-500">{lang === 'fa' ? 'استراتژی / ستاپ' : 'Strategy / Setup'}</span>
+                                      <span className="text-teal-400 font-bold">{trade.setup || '-'}</span>
                                     </li>
                                     <li className="flex justify-between">
                                       <span className="text-slate-500">{lang === 'fa' ? 'سشن بازار' : 'Market Session'}</span>
                                       <span className="text-slate-200">{getTranslatedSession(trade.session, lang)}</span>
                                     </li>
-                                    <li className="flex justify-between">
-                                      <span className="text-slate-500">{lang === 'fa' ? 'کارمزد کل معامله' : 'Commissions'}</span>
-                                      <span className="text-amber-400">${trade.fee}</span>
-                                    </li>
+                                    {trade.grade && (
+                                      <li className="flex justify-between">
+                                        <span className="text-slate-500">{lang === 'fa' ? 'امتیاز معامله' : 'Trade Grade'}</span>
+                                        <span className={`font-bold ${
+                                          trade.grade === 'A+' || trade.grade === 'A' ? 'text-emerald-400' :
+                                          trade.grade === 'B' ? 'text-cyan-400' :
+                                          trade.grade === 'C' ? 'text-amber-400' :
+                                          'text-rose-400'
+                                        }`}>{trade.grade}</span>
+                                      </li>
+                                    )}
                                     {trade.dateExit && (
                                       <li className="flex justify-between">
                                         <span className="text-slate-500">{lang === 'fa' ? 'زمان دقیق خروج' : 'Exit Time'}</span>
@@ -423,40 +437,117 @@ export default function TradesList({
                                   </div>
                                 </div>
 
-                                {/* Right: Chart Screenshot */}
-                                <div className="space-y-2.5">
+                                {/* Right: Chart Screenshots (Analysis, Entry, Exit) */}
+                                <div className="space-y-2.5 col-span-1 md:col-span-1">
                                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                                     <ImageIcon size={13} className="text-amber-400" />
-                                    {t.chartScreenshot}
+                                    {lang === 'fa' ? 'تصاویر معامله' : 'Trade Screenshots'}
                                   </h4>
-                                  <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden flex items-center justify-center relative aspect-video group">
-                                    {trade.chartImage ? (
-                                      <>
-                                        <img 
-                                          src={trade.chartImage} 
-                                          alt={`${trade.symbol} setup`} 
-                                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                          referrerPolicy="no-referrer"
-                                        />
-                                        <a 
-                                          href={trade.chartImage} 
-                                          target="_blank" 
-                                          rel="noreferrer"
-                                          className="absolute bottom-2 right-2 bg-slate-950/80 hover:bg-slate-950 text-slate-300 hover:text-white p-1 rounded border border-slate-800/50 flex items-center gap-1 text-[9px] transition"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <ExternalLink size={10} />
-                                          {lang === 'fa' ? 'نمای بزرگ' : 'Fullscreen'}
-                                        </a>
-                                      </>
-                                    ) : (
-                                      <div className="flex flex-col items-center justify-center text-slate-600 text-xs gap-1">
-                                        <ImageIcon size={24} className="opacity-40" />
-                                        <span>{lang === 'fa' ? 'فاقد تصویر تحلیل' : 'No chart image attached'}</span>
+                                  
+                                  <div className="grid grid-cols-3 gap-2">
+                                    {/* Slot 1: Analysis */}
+                                    <div className="space-y-1">
+                                      <span className="block text-[8px] text-slate-500 font-bold text-center truncate">{lang === 'fa' ? 'تحلیل' : 'Analysis'}</span>
+                                      <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden relative aspect-square flex items-center justify-center group">
+                                        {trade.imageAnalysis || trade.chartImage ? (
+                                          <>
+                                            <img 
+                                              src={trade.imageAnalysis || trade.chartImage} 
+                                              alt="Analysis" 
+                                              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                              referrerPolicy="no-referrer"
+                                            />
+                                            <a 
+                                              href={trade.imageAnalysis || trade.chartImage} 
+                                              target="_blank" 
+                                              rel="noreferrer"
+                                              className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[8px] text-white transition font-bold"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              {lang === 'fa' ? 'دیدن' : 'View'}
+                                            </a>
+                                          </>
+                                        ) : (
+                                          <span className="text-[8px] text-slate-600 italic">{lang === 'fa' ? 'خالی' : 'None'}</span>
+                                        )}
                                       </div>
-                                    )}
+                                    </div>
+
+                                    {/* Slot 2: Entry */}
+                                    <div className="space-y-1">
+                                      <span className="block text-[8px] text-slate-500 font-bold text-center truncate">{lang === 'fa' ? 'ورود' : 'Entry'}</span>
+                                      <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden relative aspect-square flex items-center justify-center group">
+                                        {trade.imageEntry ? (
+                                          <>
+                                            <img 
+                                              src={trade.imageEntry} 
+                                              alt="Entry" 
+                                              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                              referrerPolicy="no-referrer"
+                                            />
+                                            <a 
+                                              href={trade.imageEntry} 
+                                              target="_blank" 
+                                              rel="noreferrer"
+                                              className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[8px] text-white transition font-bold"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              {lang === 'fa' ? 'دیدن' : 'View'}
+                                            </a>
+                                          </>
+                                        ) : (
+                                          <span className="text-[8px] text-slate-600 italic">{lang === 'fa' ? 'خالی' : 'None'}</span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Slot 3: Exit */}
+                                    <div className="space-y-1">
+                                      <span className="block text-[8px] text-slate-500 font-bold text-center truncate">{lang === 'fa' ? 'خروج' : 'Exit'}</span>
+                                      <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden relative aspect-square flex items-center justify-center group">
+                                        {trade.imageExit ? (
+                                          <>
+                                            <img 
+                                              src={trade.imageExit} 
+                                              alt="Exit" 
+                                              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                              referrerPolicy="no-referrer"
+                                            />
+                                            <a 
+                                              href={trade.imageExit} 
+                                              target="_blank" 
+                                              rel="noreferrer"
+                                              className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[8px] text-white transition font-bold"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              {lang === 'fa' ? 'دیدن' : 'View'}
+                                            </a>
+                                          </>
+                                        ) : (
+                                          <span className="text-[8px] text-slate-600 italic">{lang === 'fa' ? 'خالی' : 'None'}</span>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
+                              </div>
+                              
+                              {/* Prominent Edit and Delete buttons inside Details */}
+                              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-800/60 mt-2">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); onEditTrade(trade); }}
+                                  className="flex items-center gap-1.5 py-1.5 px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                                >
+                                  <Edit2 size={13} />
+                                  <span>{lang === 'fa' ? 'ویرایش معامله' : 'Edit Trade'}</span>
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); onDeleteTrade(trade.id); }}
+                                  className="flex items-center gap-1.5 py-1.5 px-3.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                                >
+                                  <Trash2 size={13} />
+                                  <span>{lang === 'fa' ? 'حذف معامله' : 'Delete Trade'}</span>
+                                </button>
                               </div>
                             </motion.div>
                           </td>

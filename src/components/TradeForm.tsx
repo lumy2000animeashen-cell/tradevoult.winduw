@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Trade, TradeDirection, TradeStatus, AssetClass, TradingSession, EmotionTag } from '../types';
+import { Trade, TradeDirection, TradeStatus, AssetClass, TradingSession, EmotionTag, TradeGrade } from '../types';
 import { translations, Language, getTranslatedEmotion } from '../localization';
-import { X, Upload, Info, Calculator, ShieldAlert, Sparkles } from 'lucide-react';
+import { X, Upload, Info, Calculator, ShieldAlert, Sparkles, Plus, Image as ImageIcon } from 'lucide-react';
 
 interface TradeFormProps {
   trade?: Trade | null; // If editing
@@ -39,9 +39,50 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
   const [dateExit, setDateExit] = useState('');
   const [chartImage, setChartImage] = useState<string>('');
 
-  // Image upload reference
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
+  // 3 new image states and grade state
+  const [grade, setGrade] = useState<TradeGrade | ''>('');
+  const [imageAnalysis, setImageAnalysis] = useState<string>('');
+  const [imageEntry, setImageEntry] = useState<string>('');
+  const [imageExit, setImageExit] = useState<string>('');
+
+  // Custom Symbols List states
+  const [availableSymbols, setAvailableSymbols] = useState<string[]>(() => {
+    const saved = localStorage.getItem('tj_custom_symbols');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    return ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'EURUSD', 'GBPUSD', 'XAUUSD', 'AAPL', 'TSLA'];
+  });
+  const [isAddingCustomSymbol, setIsAddingCustomSymbol] = useState(false);
+  const [newCustomSymbol, setNewCustomSymbol] = useState('');
+
+  // Strategies List States
+  const [availableSetups, setAvailableSetups] = useState<string[]>(() => {
+    const saved = localStorage.getItem('tj_custom_setups');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // ignore
+      }
+    }
+    return lang === 'fa' 
+      ? ['SMC', 'ICT', 'پولبک', 'شکست کانال / خط روند', 'حمایت و مقاومت', 'پرایس اکشن کلاسیک']
+      : ['SMC', 'ICT', 'Pullback', 'Trendline Breakout', 'Support & Resistance', 'Classic Price Action'];
+  });
+  const [isAddingCustomSetup, setIsAddingCustomSetup] = useState(false);
+  const [newCustomSetup, setNewCustomSetup] = useState('');
+
+  const handleAddCustomSetup = () => {
+    if (newCustomSetup.trim()) {
+      const updated = [...availableSetups, newCustomSetup.trim()];
+      setAvailableSetups(updated);
+      localStorage.setItem('tj_custom_setups', JSON.stringify(updated));
+      setSetup(newCustomSetup.trim()); // Auto-select newly added setup
+      setNewCustomSetup('');
+      setIsAddingCustomSetup(false);
+    }
+  };
 
   // Load existing trade if we are editing
   useEffect(() => {
@@ -49,7 +90,7 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
       setSymbol(trade.symbol);
       setAssetClass(trade.assetClass);
       setDirection(trade.direction);
-      setStatus(trade.status);
+      setStatus(trade.status === TradeStatus.OPEN ? TradeStatus.WON : trade.status); // Fallback if old data has OPEN
       setEntryPrice(trade.entryPrice);
       setExitPrice(trade.exitPrice ?? '');
       setQuantity(trade.quantity);
@@ -65,6 +106,10 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
       setDateEntry(trade.dateEntry);
       setDateExit(trade.dateExit ?? '');
       setChartImage(trade.chartImage ?? '');
+      setGrade(trade.grade ?? '');
+      setImageAnalysis(trade.imageAnalysis ?? '');
+      setImageEntry(trade.imageEntry ?? '');
+      setImageExit(trade.imageExit ?? '');
     } else {
       // Default dates
       const now = new Date();
@@ -73,8 +118,13 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
         .slice(0, 16);
       setDateEntry(localISOString);
       setDateExit(localISOString);
+      
+      // Set default symbol
+      if (availableSymbols.length > 0) {
+        setSymbol(availableSymbols[0]);
+      }
     }
-  }, [trade]);
+  }, [trade, availableSymbols]);
 
   // Automated P&L Calculation logic
   useEffect(() => {
@@ -89,13 +139,12 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
       const xp = Number(exitPrice);
       const qty = Number(quantity);
       const lev = Number(leverage || 1);
-      const f = Number(fee || 0);
 
       let calculatedPnl = 0;
       if (direction === TradeDirection.LONG) {
-        calculatedPnl = (xp - ep) * qty * lev - f;
+        calculatedPnl = (xp - ep) * qty * lev;
       } else {
-        calculatedPnl = (ep - xp) * qty * lev - f;
+        calculatedPnl = (ep - xp) * qty * lev;
       }
 
       // Format to 4 decimals max
@@ -109,12 +158,10 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
   // Adjust status based on P&L for closed trades
   const handlePnlFieldChange = (val: number) => {
     setPnl(val);
-    if (val > 0) {
+    if (val >= 0) {
       setStatus(TradeStatus.WON);
-    } else if (val < 0) {
-      setStatus(TradeStatus.LOST);
     } else {
-      setStatus(TradeStatus.BREAKEVEN);
+      setStatus(TradeStatus.LOST);
     }
   };
 
@@ -127,40 +174,28 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
     }
   };
 
-  // File Upload Handlers (converts image to Base64)
-  const processImageFile = (file: File) => {
+  // Three File Upload References
+  const fileAnalysisRef = useRef<HTMLInputElement>(null);
+  const fileEntryRef = useRef<HTMLInputElement>(null);
+  const fileExitRef = useRef<HTMLInputElement>(null);
+
+  const processSpecificImage = (file: File, type: 'ANALYSIS' | 'ENTRY' | 'EXIT') => {
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (e) => {
         if (e.target?.result) {
-          setChartImage(e.target.result as string);
+          const base64Data = e.target.result as string;
+          if (type === 'ANALYSIS') {
+            setImageAnalysis(base64Data);
+            setChartImage(base64Data); // Keep chartImage as fallback for existing structures
+          } else if (type === 'ENTRY') {
+            setImageEntry(base64Data);
+          } else if (type === 'EXIT') {
+            setImageExit(base64Data);
+          }
         }
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragActive(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragActive(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processImageFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processImageFile(e.target.files[0]);
     }
   };
 
@@ -177,20 +212,24 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
       direction,
       status,
       entryPrice: Number(entryPrice),
-      exitPrice: status !== TradeStatus.OPEN && exitPrice !== '' ? Number(exitPrice) : undefined,
+      exitPrice: exitPrice !== '' ? Number(exitPrice) : undefined,
       quantity: Number(quantity),
       leverage: Number(leverage || 1),
       stopLoss: stopLoss !== '' ? Number(stopLoss) : undefined,
       takeProfit: takeProfit !== '' ? Number(takeProfit) : undefined,
-      pnl: status === TradeStatus.OPEN ? 0 : pnl,
+      pnl: pnl,
       fee: Number(fee || 0),
       session,
       setup: setup.trim(),
       emotions,
       dateEntry,
-      dateExit: status !== TradeStatus.OPEN && dateExit ? dateExit : undefined,
+      dateExit: dateExit ? dateExit : undefined,
       notes: notes.trim(),
-      chartImage: chartImage || undefined
+      chartImage: imageAnalysis || chartImage || undefined,
+      grade: grade || undefined,
+      imageAnalysis: imageAnalysis || undefined,
+      imageEntry: imageEntry || undefined,
+      imageExit: imageExit || undefined
     };
 
     onSave(finalTrade);
@@ -200,11 +239,11 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
 
   return (
     <div 
-      className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
+      className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div 
-        className={`bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl shadow-2xl p-6 md:p-8 space-y-6 ${isRtl ? 'text-right' : 'text-left'}`}
+        className={`bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl shadow-2xl p-6 md:p-8 space-y-6 max-h-[90vh] overflow-y-auto ${isRtl ? 'text-right' : 'text-left'}`}
         onClick={(e) => e.stopPropagation()}
         style={{ direction: isRtl ? 'rtl' : 'ltr' }}
       >
@@ -232,15 +271,69 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
             <div className="space-y-4">
               {/* Symbol Ticker */}
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{t.symbol} <span className="text-rose-400">*</span></label>
-                <input 
-                  type="text" 
-                  required
-                  placeholder="e.g. BTCUSDT, EURUSD, XAUUSD"
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all uppercase"
-                />
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                  {lang === 'fa' ? 'انتخاب نماد معاملاتی' : 'Trading Asset / Pair'} <span className="text-rose-400">*</span>
+                </label>
+                {isAddingCustomSymbol ? (
+                  <div className="flex gap-1.5">
+                    <input 
+                      type="text"
+                      required
+                      placeholder="e.g. BTCUSDT"
+                      value={newCustomSymbol}
+                      onChange={(e) => setNewCustomSymbol(e.target.value.toUpperCase())}
+                      className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 uppercase"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = newCustomSymbol.trim().toUpperCase();
+                        if (trimmed && !availableSymbols.includes(trimmed)) {
+                          const updated = [...availableSymbols, trimmed];
+                          setAvailableSymbols(updated);
+                          localStorage.setItem('tj_custom_symbols', JSON.stringify(updated));
+                          setSymbol(trimmed);
+                        }
+                        setIsAddingCustomSymbol(false);
+                        setNewCustomSymbol('');
+                      }}
+                      className="px-3 bg-emerald-500 text-slate-950 hover:bg-emerald-400 text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      {lang === 'fa' ? 'تایید' : 'Add'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingCustomSymbol(false);
+                        setNewCustomSymbol('');
+                      }}
+                      className="px-2 bg-slate-800 text-slate-400 hover:text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-1.5">
+                    <select
+                      value={symbol}
+                      onChange={(e) => setSymbol(e.target.value)}
+                      className="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 cursor-pointer uppercase"
+                    >
+                      {availableSymbols.map((sym) => (
+                        <option key={sym} value={sym} className="uppercase">{sym}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingCustomSymbol(true)}
+                      className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 rounded-xl border border-slate-800 transition flex items-center justify-center cursor-pointer gap-1 text-[11px]"
+                      title={lang === 'fa' ? 'افزودن جفت ارز' : 'Add custom pair'}
+                    >
+                      <Plus size={15} />
+                      <span>{lang === 'fa' ? 'افزودن' : 'Add'}</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Asset Class */}
@@ -283,34 +376,20 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
               {/* Status Segmented Grid */}
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{t.status}</label>
-                <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 font-black text-[9px] uppercase tracking-wider">
+                <div className="grid grid-cols-2 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 font-black text-[9px] uppercase tracking-wider">
                   <button 
                     type="button"
                     onClick={() => { setStatus(TradeStatus.WON); }}
                     className={`py-2 rounded-lg transition-all cursor-pointer ${status === TradeStatus.WON ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'text-slate-500 hover:text-slate-300'}`}
                   >
-                    {lang === 'fa' ? 'سود ده (Won)' : 'Won'}
+                    {lang === 'fa' ? 'سود ده' : 'Won'}
                   </button>
                   <button 
                     type="button"
                     onClick={() => { setStatus(TradeStatus.LOST); }}
                     className={`py-2 rounded-lg transition-all cursor-pointer ${status === TradeStatus.LOST ? 'bg-rose-500/15 text-rose-400 border border-rose-500/20' : 'text-slate-500 hover:text-slate-300'}`}
                   >
-                    {lang === 'fa' ? 'زیان ده (Lost)' : 'Lost'}
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => { setStatus(TradeStatus.BREAKEVEN); }}
-                    className={`py-2 rounded-lg transition-all cursor-pointer ${status === TradeStatus.BREAKEVEN ? 'bg-slate-800 text-slate-200 border border-slate-700' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                    {lang === 'fa' ? 'سر به سر (BE)' : 'Breakeven'}
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => { setStatus(TradeStatus.OPEN); }}
-                    className={`py-2 rounded-lg transition-all cursor-pointer ${status === TradeStatus.OPEN ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' : 'text-slate-500 hover:text-slate-300'}`}
-                  >
-                    {lang === 'fa' ? 'باز (Active)' : 'Open Trade'}
+                    {lang === 'fa' ? 'زیان ده' : 'Lost'}
                   </button>
                 </div>
               </div>
@@ -378,73 +457,32 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {/* Stop Loss */}
-                <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{t.stopLoss}</label>
-                  <input 
-                    type="number" 
-                    step="any"
-                    placeholder="Optional"
-                    value={stopLoss}
-                    onChange={(e) => setStopLoss(e.target.value !== '' ? Number(e.target.value) : '')}
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
-                  />
-                </div>
 
-                {/* Take Profit */}
-                <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{t.takeProfit}</label>
-                  <input 
-                    type="number" 
-                    step="any"
-                    placeholder="Optional"
-                    value={takeProfit}
-                    onChange={(e) => setTakeProfit(e.target.value !== '' ? Number(e.target.value) : '')}
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
-                  />
-                </div>
-              </div>
 
-              {/* Commission / Fee & Calculated Net PNL */}
-              <div className="grid grid-cols-2 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
-                {/* Fee */}
-                <div>
-                  <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1">{t.fee}</label>
-                  <input 
-                    type="number" 
-                    step="any"
-                    value={fee}
-                    onChange={(e) => setFee(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-300 text-xs font-black font-mono focus:outline-none focus:border-slate-700"
-                  />
-                </div>
-
+              {/* Calculated Net PNL */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
                 {/* PNL Display & Override */}
                 <div>
-                  <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1">{t.pnl}</label>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">{t.pnl}</label>
                   <div className="relative">
                     <span className="absolute left-2.5 top-2 text-slate-500 text-[10px] font-mono">$</span>
                     <input 
                       type="number" 
                       step="any"
-                      disabled={status === TradeStatus.OPEN}
-                      value={status === TradeStatus.OPEN ? 0 : pnl}
+                      value={pnl}
                       onChange={(e) => handlePnlFieldChange(Number(e.target.value))}
                       className={`w-full pl-6 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs font-black font-mono focus:outline-none focus:border-slate-700 ${
-                        status === TradeStatus.OPEN ? 'text-slate-500 opacity-50' : pnl > 0 ? 'text-emerald-400' : pnl < 0 ? 'text-rose-400' : 'text-slate-300'
+                        pnl > 0 ? 'text-emerald-400' : pnl < 0 ? 'text-rose-400' : 'text-slate-300'
                       }`}
                     />
                   </div>
                 </div>
               </div>
               
-              {status !== TradeStatus.OPEN && (
-                <p className="text-[10px] text-teal-400 flex items-center gap-1 font-semibold">
-                  <Info size={11} />
-                  <span>{t.autoCalcPnl}</span>
-                </p>
-              )}
+              <p className="text-[10px] text-teal-400 flex items-center gap-1 font-semibold">
+                <Info size={11} />
+                <span>{t.autoCalcPnl}</span>
+              </p>
             </div>
 
             {/* COLUMN 3: Operational parameters & screenshot */}
@@ -464,17 +502,43 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
                 </select>
               </div>
 
-              {/* Setup / Strategy */}
+              {/* Grade / Rating of Trade */}
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{t.setup}</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. SMC Orderblock, ICT Breaker, Pullback"
-                  value={setup}
-                  onChange={(e) => setSetup(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-semibold focus:outline-none focus:border-slate-700 transition-all"
-                />
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                  {lang === 'fa' ? 'امتیاز معامله' : 'Trade Grade'}
+                </label>
+                <div className="grid grid-cols-5 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 font-mono text-xs font-bold">
+                  {(['F', 'C', 'B', 'A', 'A+'] as TradeGrade[]).map((g) => {
+                    const isSelected = grade === g;
+                    let activeBg = 'bg-slate-800 text-slate-100';
+                    if (isSelected) {
+                      if (g === 'A+' || g === 'A') {
+                        activeBg = 'bg-emerald-500 text-slate-950';
+                      } else if (g === 'B') {
+                        activeBg = 'bg-cyan-500 text-slate-950';
+                      } else if (g === 'C') {
+                        activeBg = 'bg-amber-500 text-slate-950';
+                      } else {
+                        activeBg = 'bg-rose-500 text-slate-950';
+                      }
+                    } else {
+                      activeBg = 'text-slate-500 hover:text-slate-300';
+                    }
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setGrade(g)}
+                        className={`py-2 text-center rounded-lg transition-all cursor-pointer ${activeBg}`}
+                      >
+                        {g}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
+
+
 
               {/* Execution Timestamps */}
               <div className="grid grid-cols-1 gap-2 text-xs">
@@ -501,6 +565,73 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
               </div>
             </div>
 
+          </div>
+
+          {/* Setup / Strategy Selection Bubbles */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-4.5 space-y-3">
+            <div className="flex justify-between items-center">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">
+                {lang === 'fa' ? 'استراتژی و ستاپ معامله' : 'Strategy / Setup'}
+              </label>
+              
+              {!isAddingCustomSetup ? (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCustomSetup(true)}
+                  className="text-[10px] font-black text-teal-400 hover:text-teal-300 transition-all flex items-center gap-1 uppercase tracking-wider cursor-pointer"
+                >
+                  <Plus size={12} />
+                  <span>{lang === 'fa' ? 'افزودن استراتژی جدید' : 'Add Strategy'}</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text"
+                    placeholder={lang === 'fa' ? 'نام استراتژی...' : 'Strategy name...'}
+                    value={newCustomSetup}
+                    onChange={(e) => setNewCustomSetup(e.target.value)}
+                    className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-[10px] font-semibold focus:outline-none focus:border-slate-700 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomSetup}
+                    className="px-2 py-1 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                  >
+                    {lang === 'fa' ? 'ذخیره' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsAddingCustomSetup(false); setNewCustomSetup(''); }}
+                    className="text-slate-500 hover:text-slate-300 text-[10px] font-semibold cursor-pointer"
+                  >
+                    {lang === 'fa' ? 'لغو' : 'Cancel'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-black uppercase tracking-wider">
+              {availableSetups.map((s) => {
+                const isSelected = setup === s;
+                let activeStyle = '';
+                if (isSelected) {
+                  activeStyle = 'bg-teal-500/10 text-teal-400 border-teal-500/30 font-black';
+                } else {
+                  activeStyle = 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700';
+                }
+
+                return (
+                  <button 
+                    key={s}
+                    type="button"
+                    onClick={() => setSetup(isSelected ? '' : s)}
+                    className={`py-2.5 px-3 border rounded-xl text-center transition-all select-none leading-tight cursor-pointer ${activeStyle}`}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Emotions multiselect grid */}
@@ -540,7 +671,7 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{t.notes}</label>
               <textarea 
-                rows={4}
+                rows={6}
                 placeholder={lang === 'fa' ? 'جزئیات این ستاپ معاملاتی، اشتباهات یا نکات روانشناسی و درس‌هایی که گرفتید را بنویسید...' : 'Type key setups details, mistakes made, lessons learned, or trade reviews...'}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -548,53 +679,120 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
               ></textarea>
             </div>
 
-            {/* Drag & Drop Screenshot upload */}
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{t.chartScreenshot}</label>
-              <div 
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl h-28 flex flex-col justify-center items-center p-4 text-center cursor-pointer transition-all ${
-                  isDragActive ? 'border-teal-500 bg-teal-500/5' : 'border-slate-800 hover:border-slate-700 bg-slate-950/40'
-                }`}
-              >
-                <input 
-                  type="file" 
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="hidden"
-                />
-
-                {chartImage ? (
-                  <div className="flex items-center gap-3 w-full">
-                    <img 
-                      src={chartImage} 
-                      alt="Thumbnail preview" 
-                      className="h-16 w-24 object-cover rounded border border-slate-700"
-                      referrerPolicy="no-referrer"
+            {/* Three Screenshot Slots: Analysis, Entry, Exit */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                {lang === 'fa' ? 'تصاویر معامله (تحلیل، ورود، خروج)' : 'Trade Screenshots (Analysis, Entry, Exit)'}
+              </label>
+              
+              <div className="grid grid-cols-3 gap-3">
+                {/* Slot 1: Analysis */}
+                <div className="space-y-1.5">
+                  <span className="block text-[9px] text-slate-400 font-bold">{lang === 'fa' ? '۱. تحلیل چارت' : '1. Chart Analysis'}</span>
+                  <div 
+                    onClick={() => fileAnalysisRef.current?.click()}
+                    className="relative border border-slate-800 hover:border-slate-700 bg-slate-950/40 rounded-xl h-24 flex flex-col justify-center items-center cursor-pointer overflow-hidden transition-all group"
+                  >
+                    <input 
+                      type="file" 
+                      ref={fileAnalysisRef}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) processSpecificImage(e.target.files[0], 'ANALYSIS');
+                      }}
+                      accept="image/*"
+                      className="hidden"
                     />
-                    <div className="text-left overflow-hidden flex-1">
-                      <p className="text-xs font-black text-emerald-400 font-mono truncate">{lang === 'fa' ? 'تصویر با موفقیت بارگذاری شد' : 'IMAGE UPLOADED'}</p>
-                      <button 
-                        type="button" 
-                        onClick={(e) => { e.stopPropagation(); setChartImage(''); }}
-                        className="text-[10px] text-rose-400 hover:underline mt-1 block font-black uppercase tracking-wider"
-                      >
-                        {lang === 'fa' ? 'حذف تصویر' : 'REMOVE IMAGE'}
-                      </button>
-                    </div>
+                    {imageAnalysis ? (
+                      <>
+                        <img src={imageAnalysis} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setImageAnalysis(''); }}
+                          className="absolute inset-0 bg-rose-950/80 text-white font-black text-[9px] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all uppercase tracking-wider"
+                        >
+                          {lang === 'fa' ? 'حذف' : 'Remove'}
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-500 text-center p-1.5">
+                        <Upload size={16} className="mb-1 text-teal-400" />
+                        <span className="text-[8px] font-black uppercase tracking-wider leading-none">{lang === 'fa' ? 'آپلود تحلیل' : 'Upload Analysis'}</span>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <>
-                    <Upload className="text-slate-500 h-6 w-6 mb-1" />
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 leading-tight">
-                      {t.dragScreenshot}
-                    </p>
-                  </>
-                )}
+                </div>
+
+                {/* Slot 2: Entry */}
+                <div className="space-y-1.5">
+                  <span className="block text-[9px] text-slate-400 font-bold">{lang === 'fa' ? '۲. نقطه ورود' : '2. Trade Entry'}</span>
+                  <div 
+                    onClick={() => fileEntryRef.current?.click()}
+                    className="relative border border-slate-800 hover:border-slate-700 bg-slate-950/40 rounded-xl h-24 flex flex-col justify-center items-center cursor-pointer overflow-hidden transition-all group"
+                  >
+                    <input 
+                      type="file" 
+                      ref={fileEntryRef}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) processSpecificImage(e.target.files[0], 'ENTRY');
+                      }}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    {imageEntry ? (
+                      <>
+                        <img src={imageEntry} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setImageEntry(''); }}
+                          className="absolute inset-0 bg-rose-950/80 text-white font-black text-[9px] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all uppercase tracking-wider"
+                        >
+                          {lang === 'fa' ? 'حذف' : 'Remove'}
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-500 text-center p-1.5">
+                        <Upload size={16} className="mb-1 text-cyan-400" />
+                        <span className="text-[8px] font-black uppercase tracking-wider leading-none">{lang === 'fa' ? 'آپلود ورود' : 'Upload Entry'}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Slot 3: Exit */}
+                <div className="space-y-1.5">
+                  <span className="block text-[9px] text-slate-400 font-bold">{lang === 'fa' ? '۳. نقطه خروج' : '3. Trade Exit'}</span>
+                  <div 
+                    onClick={() => fileExitRef.current?.click()}
+                    className="relative border border-slate-800 hover:border-slate-700 bg-slate-950/40 rounded-xl h-24 flex flex-col justify-center items-center cursor-pointer overflow-hidden transition-all group"
+                  >
+                    <input 
+                      type="file" 
+                      ref={fileExitRef}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) processSpecificImage(e.target.files[0], 'EXIT');
+                      }}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    {imageExit ? (
+                      <>
+                        <img src={imageExit} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setImageExit(''); }}
+                          className="absolute inset-0 bg-rose-950/80 text-white font-black text-[9px] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all uppercase tracking-wider"
+                        >
+                          {lang === 'fa' ? 'حذف' : 'Remove'}
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-500 text-center p-1.5">
+                        <Upload size={16} className="mb-1 text-amber-400" />
+                        <span className="text-[8px] font-black uppercase tracking-wider leading-none">{lang === 'fa' ? 'آپلود خروج' : 'Upload Exit'}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

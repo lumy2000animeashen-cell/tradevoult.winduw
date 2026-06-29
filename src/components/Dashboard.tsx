@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { Trade, TradeStatus, TradingGoal } from '../types';
+import { Trade, TradeStatus, TradingGoal, TradeDirection } from '../types';
 import { translations, Language, getTranslatedAsset } from '../localization';
 import { 
   TrendingUp, 
@@ -20,15 +20,26 @@ import {
   Activity
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { 
+  ResponsiveContainer, 
+  AreaChart, 
+  CartesianGrid, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  Area 
+} from 'recharts';
 
 interface DashboardProps {
   trades: Trade[];
   goals: TradingGoal[];
   lang: Language;
+  accountName: string;
+  startingBalance: number;
   onSelectDay?: (dateStr: string) => void;
 }
 
-export default function Dashboard({ trades, goals, lang, onSelectDay }: DashboardProps) {
+export default function Dashboard({ trades, goals, lang, accountName, startingBalance, onSelectDay }: DashboardProps) {
   const t = translations[lang];
 
   // Current year/month state for calendar
@@ -59,6 +70,31 @@ export default function Dashboard({ trades, goals, lang, onSelectDay }: Dashboar
     // Avg Win & Avg Loss
     const avgWin = wonTrades.length > 0 ? totalWinAmount / wonTrades.length : 0;
     const avgLoss = lostTrades.length > 0 ? totalLossAmount / lostTrades.length : 0;
+
+    // Calculate R:R
+    let rrSum = 0;
+    let rrCount = 0;
+    trades.forEach(tr => {
+      if (tr.stopLoss && tr.takeProfit && tr.entryPrice) {
+        let risk = 0;
+        let reward = 0;
+        if (tr.direction === TradeDirection.LONG) {
+          risk = tr.entryPrice - tr.stopLoss;
+          reward = tr.takeProfit - tr.entryPrice;
+        } else {
+          risk = tr.stopLoss - tr.entryPrice;
+          reward = tr.entryPrice - tr.takeProfit;
+        }
+        if (risk > 0 && reward > 0) {
+          rrSum += (reward / risk);
+          rrCount++;
+        }
+      }
+    });
+    const avgPlannedRR = rrCount > 0 ? rrSum / rrCount : 0;
+
+    const currentBalance = startingBalance + totalPnl;
+    const growthPercentage = startingBalance > 0 ? (totalPnl / startingBalance) * 100 : 0;
 
     // Best Asset Symbol
     const assetPnlMap: Record<string, number> = {};
@@ -93,7 +129,6 @@ export default function Dashboard({ trades, goals, lang, onSelectDay }: Dashboar
     const bestDay = lang === 'fa' ? daysNameFa[bestDayIdx] : daysNameEn[bestDayIdx];
 
     // Current Win/Loss Streak
-    // We sort trades by date oldest to newest to find the chronological streak
     const sortedChronological = [...trades]
       .filter(tr => tr.status !== TradeStatus.OPEN)
       .sort((a, b) => new Date(a.dateEntry).getTime() - new Date(b.dateEntry).getTime());
@@ -129,11 +164,48 @@ export default function Dashboard({ trades, goals, lang, onSelectDay }: Dashboar
       profitFactor,
       avgWin,
       avgLoss,
+      avgPlannedRR,
+      currentBalance,
+      growthPercentage,
       bestAsset: bestAsset === '-' ? '-' : bestAsset.toUpperCase(),
       bestDay,
       streak: currentStreakCount > 0 ? `${currentStreakCount} ${currentStreakType === 'WON' ? (lang === 'fa' ? 'برد متوالی' : 'Wins') : (lang === 'fa' ? 'باخت متوالی' : 'Losses')}` : '-'
     };
-  }, [trades, lang]);
+  }, [trades, lang, startingBalance]);
+
+  // Calculate Cumulative Equity Curve for Dashboard
+  const equityData = useMemo(() => {
+    const closedTrades = trades.filter(tr => tr.status !== TradeStatus.OPEN);
+    const sortedTrades = [...closedTrades].sort(
+      (a, b) => new Date(a.dateEntry).getTime() - new Date(b.dateEntry).getTime()
+    );
+
+    let currentBalance = startingBalance;
+    const data = [{
+      index: 0,
+      balance: currentBalance,
+      pnl: 0,
+      date: lang === 'fa' ? 'شروع' : 'Start'
+    }];
+
+    sortedTrades.forEach((trade, i) => {
+      currentBalance += trade.pnl;
+      const dateObj = new Date(trade.dateEntry);
+      const shortDate = dateObj.toLocaleDateString(lang === 'fa' ? 'fa-IR' : 'en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+
+      data.push({
+        index: i + 1,
+        balance: Math.round(currentBalance * 100) / 100,
+        pnl: trade.pnl,
+        date: `${trade.symbol.toUpperCase()} (${shortDate})`
+      });
+    });
+
+    return data;
+  }, [trades, lang, startingBalance]);
 
   // 2. Monthly calendar generator helper
   const calendarDays = useMemo(() => {
@@ -211,70 +283,85 @@ export default function Dashboard({ trades, goals, lang, onSelectDay }: Dashboar
     <div className="space-y-6" id="dashboard_panel">
       {/* 1. Header Hero section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Metric 1: Total Profit */}
+        {/* Metric 1: Account & Current Balance */}
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden"
-          id="metric_total_profit"
+          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden flex flex-col justify-between"
+          id="metric_current_balance"
         >
-          <p className="text-xs text-slate-500 font-black uppercase tracking-wider">{t.totalProfit}</p>
-          <h2 className={`text-3xl md:text-4xl lg:text-5xl font-black leading-none font-sans tracking-tight ${stats.totalPnl >= 0 ? 'text-white' : 'text-rose-500'}`}>
-            {stats.totalPnl >= 0 ? '+' : ''}${stats.totalPnl.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-          </h2>
-          <p className={`text-xs font-bold font-sans ${stats.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {stats.totalPnl >= 0 ? (lang === 'fa' ? 'روند سرمایه مثبت و صعودی' : 'Positive equity growth') : (lang === 'fa' ? 'روند سرمایه کاهشی' : 'Under drawdown state')}
+          <div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-black uppercase tracking-wider mb-1">
+              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></span>
+              <span>{accountName || (lang === 'fa' ? 'نام حساب' : 'ACCOUNT')}</span>
+            </div>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-none font-sans tracking-tight">
+              ${stats.currentBalance.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+            </h2>
+          </div>
+          <p className="text-[11px] text-slate-400 font-bold font-sans mt-3">
+            {lang === 'fa' ? 'سرمایه اولیه:' : 'Starting Cap:'} <span className="font-mono text-slate-200">${startingBalance.toLocaleString()}</span>
           </p>
         </motion.div>
 
-        {/* Metric 2: Win Rate */}
+        {/* Metric 2: Net P&L & Growth % */}
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden"
-          id="metric_win_rate"
+          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden flex flex-col justify-between"
+          id="metric_total_profit"
         >
-          <p className="text-xs text-slate-500 font-black uppercase tracking-wider">{t.winRate}</p>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-white leading-none font-sans tracking-tight">
-            {stats.winRate.toFixed(1)}%
-          </h2>
-          <p className="text-xs text-blue-400 font-bold">
-            {trades.filter(tr => tr.status === TradeStatus.WON).length}W / {stats.closedCount}T
+          <div>
+            <p className="text-xs text-slate-500 font-black uppercase tracking-wider mb-1">
+              {lang === 'fa' ? 'سود یا زیان خالص' : 'NET PROFIT / LOSS'}
+            </p>
+            <h2 className={`text-2xl md:text-3xl lg:text-4xl font-black leading-none font-sans tracking-tight ${stats.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+              {stats.totalPnl >= 0 ? '+' : ''}${stats.totalPnl.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+            </h2>
+          </div>
+          <p className={`text-[11px] font-bold font-mono mt-3 ${stats.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {stats.totalPnl >= 0 ? '▲' : '▼'} {stats.growthPercentage.toFixed(2)}% {lang === 'fa' ? 'رشد کل' : 'ROI'}
           </p>
         </motion.div>
 
-        {/* Metric 3: Profit Factor */}
+        {/* Metric 3: Win Rate & Profit Factor */}
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden"
-          id="metric_profit_factor"
+          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden flex flex-col justify-between"
+          id="metric_win_rate"
         >
-          <p className="text-xs text-slate-500 font-black uppercase tracking-wider">{t.profitFactor}</p>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-white leading-none font-sans tracking-tight">
-            {stats.profitFactor === 99.9 ? '∞' : stats.profitFactor.toFixed(2)}
-          </h2>
-          <p className="text-xs text-slate-400 font-bold font-sans">
-            {lang === 'fa' ? 'ضریب سودآوری حساب' : 'Profitability ratio indicator'}
+          <div>
+            <p className="text-xs text-slate-500 font-black uppercase tracking-wider mb-1">{t.winRate}</p>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-none font-sans tracking-tight">
+              {stats.winRate.toFixed(1)}%
+            </h2>
+          </div>
+          <p className="text-[11px] text-slate-400 font-bold font-sans mt-3">
+            {lang === 'fa' ? 'فاکتور سود:' : 'Profit Factor:'} <span className="font-mono text-cyan-400 font-bold">{stats.profitFactor === 99.9 ? '∞' : stats.profitFactor.toFixed(2)}</span>
           </p>
         </motion.div>
 
-        {/* Metric 4: Total Trades */}
+        {/* Metric 4: Average Risk to Reward Ratio */}
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden"
-          id="metric_total_trades"
+          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden flex flex-col justify-between"
+          id="metric_risk_to_reward"
         >
-          <p className="text-xs text-slate-500 font-black uppercase tracking-wider">{t.totalTrades}</p>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-white leading-none font-sans tracking-tight">
-            {stats.totalTradesCount}
-          </h2>
-          <p className="text-xs text-indigo-400 font-bold font-sans">
-            {stats.openTradesCount} {t.openTrades} {lang === 'fa' ? 'فعال' : 'active'}
+          <div>
+            <p className="text-xs text-slate-500 font-black uppercase tracking-wider mb-1">
+              {lang === 'fa' ? 'میانگین ریسک به ریوارد' : 'AVG RISK : REWARD'}
+            </p>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-none font-sans tracking-tight font-mono">
+              1 : {stats.avgPlannedRR > 0 ? stats.avgPlannedRR.toFixed(1) : '1.5'}
+            </h2>
+          </div>
+          <p className="text-[11px] text-slate-400 font-bold font-sans mt-3">
+            {lang === 'fa' ? 'نسبت پرداخت:' : 'Payoff Ratio:'} <span className="font-mono text-indigo-400 font-bold">{(stats.avgWin / (stats.avgLoss > 0 ? stats.avgLoss : 1)).toFixed(1)}x</span>
           </p>
         </motion.div>
       </div>
@@ -300,6 +387,47 @@ export default function Dashboard({ trades, goals, lang, onSelectDay }: Dashboar
         <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl col-span-2 md:col-span-1 flex flex-col justify-between">
           <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{t.bestDay}</span>
           <span className="text-sm font-black text-amber-400 font-sans">{stats.bestDay}</span>
+        </div>
+      </div>
+
+      {/* Equity Curve Chart Card */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={18} className="text-emerald-400" />
+            <h3 className="text-sm font-bold text-slate-100">{lang === 'fa' ? 'نمودار رشد سرمایه (Equity Curve)' : 'Equity Growth Curve'}</h3>
+          </div>
+          <div className="text-[11px] font-semibold text-slate-400 font-mono">
+            {lang === 'fa' ? 'رشد تجمعی سرمایه در زمان' : 'Cumulative equity path over time'}
+          </div>
+        </div>
+        
+        <div className="h-[250px] w-full text-xs font-mono">
+          {equityData.length <= 1 ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-500 italic gap-2">
+              <TrendingUp size={24} className="opacity-30 text-slate-400" />
+              <span>{lang === 'fa' ? 'نمودار بعد از ثبت اولین معامله رسم خواهد شد.' : 'The chart will be rendered after your first closed trade.'}</span>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={equityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorEquityDashboard" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="date" stroke="#64748b" />
+                <YAxis stroke="#64748b" domain={['auto', 'auto']} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px' }}
+                  labelClassName="text-slate-400 font-bold"
+                />
+                <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorEquityDashboard)" name={lang === 'fa' ? 'سرمایه ($)' : 'Equity ($)'} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 

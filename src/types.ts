@@ -15,6 +15,14 @@ export enum TradeStatus {
   OPEN = 'OPEN'      // معامله باز
 }
 
+export enum TradeGrade {
+  F = 'F',
+  C = 'C',
+  B = 'B',
+  A = 'A',
+  A_PLUS = 'A+'
+}
+
 export enum TradingSession {
   SYDNEY = 'SYDNEY',
   TOKYO = 'TOKYO',
@@ -64,6 +72,10 @@ export interface Trade {
   dateExit?: string;      // تاریخ و زمان خروج (YYYY-MM-DDTHH:mm)
   notes?: string;         // یادداشت‌ها و جزئیات بیشتر
   chartImage?: string;    // آدرس تصویر یا داده‌ی Base64 تصویر تحلیل چارت
+  grade?: TradeGrade;     // امتیاز معامله (F, C, B, A, A+)
+  imageAnalysis?: string; // تصویر تحلیل
+  imageEntry?: string;    // تصویر ورود
+  imageExit?: string;     // تصویر خروج
 }
 
 export interface DailyJournalEntry {
@@ -100,3 +112,10 @@ export interface RiskCalculation {
   positionSize: number;    // حجم محاسبه شده برای معامله
   totalRiskedAmount: number; // کل مبلغ ریسک شده به دلار
 }
+
+export interface TradingAccount {
+  id: string;
+  name: string;
+  startingBalance: number;
+}
+
