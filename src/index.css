@@ -28,3 +28,14 @@
   background: #334155;
 }
 
+/* Hide spin buttons for standard number inputs except those with .keep-spin class */
+input[type="number"]:not(.keep-spin)::-webkit-inner-spin-button,
+input[type="number"]:not(.keep-spin)::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"]:not(.keep-spin) {
+  -moz-appearance: textfield;
+}
+
+

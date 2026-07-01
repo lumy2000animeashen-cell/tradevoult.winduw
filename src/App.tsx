@@ -21,7 +21,6 @@ import Dashboard from './components/Dashboard';
 import TradesList from './components/TradesList';
 import TradeForm from './components/TradeForm';
 import Analytics from './components/Analytics';
-import RiskCalculator from './components/RiskCalculator';
 import DailyNotes from './components/DailyNotes';
 import ExportImport from './components/ExportImport';
 import LockScreen from './components/LockScreen';
@@ -99,7 +98,7 @@ const defaultGoals = (lang: Language): TradingGoal[] => {
 export default function App() {
   // 1. Core States
   const [lang, setLang] = useState<Language>('fa'); // Persian (Farsi) by default!
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'ledger' | 'analytics' | 'calculator' | 'notes' | 'backup'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'ledger' | 'analytics' | 'notes' | 'backup'>('dashboard');
   
   const [trades, setTrades] = useState<Trade[]>([]);
   const [dailyEntries, setDailyEntries] = useState<DailyJournalEntry[]>([]);
@@ -354,10 +353,6 @@ export default function App() {
             e.preventDefault();
             setActiveTab('analytics');
             break;
-          case 'c':
-            e.preventDefault();
-            setActiveTab('calculator');
-            break;
           case 'j':
             e.preventDefault();
             setActiveTab('notes');
@@ -427,6 +422,27 @@ export default function App() {
     setChecklist(updatedChecklist);
     const keys = getAccountStorageKeys(currentAccountId);
     localStorage.setItem(keys.checklist, JSON.stringify(updatedChecklist));
+  };
+
+  const saveGoalsToStorage = (updatedGoals: TradingGoal[]) => {
+    setGoals(updatedGoals);
+    const keys = getAccountStorageKeys(currentAccountId);
+    localStorage.setItem(keys.goals, JSON.stringify(updatedGoals));
+  };
+
+  const handleAddGoal = (goal: TradingGoal) => {
+    const updated = [...goals, goal];
+    saveGoalsToStorage(updated);
+  };
+
+  const handleEditGoal = (updatedGoal: TradingGoal) => {
+    const updated = goals.map(g => g.id === updatedGoal.id ? updatedGoal : g);
+    saveGoalsToStorage(updated);
+  };
+
+  const handleDeleteGoal = (id: string) => {
+    const updated = goals.filter(g => g.id !== id);
+    saveGoalsToStorage(updated);
   };
 
   // 3. Operational Handlers
@@ -858,19 +874,6 @@ export default function App() {
               {lang === 'fa' ? 'ابزارها' : 'UTILITIES'}
             </div>
 
-            {/* Risk Calculator Tab */}
-            <button 
-              onClick={() => setActiveTab('calculator')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-black uppercase transition-all cursor-pointer ${
-                activeTab === 'calculator' 
-                  ? 'bg-white text-slate-950 font-black' 
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-white'
-              }`}
-            >
-              <Calculator size={16} className={activeTab === 'calculator' ? 'text-slate-950' : 'text-slate-400'} />
-              <span>{t.riskCalc}</span>
-            </button>
-
             {/* Daily Journal Tab */}
             <button 
               onClick={() => setActiveTab('notes')}
@@ -946,12 +949,6 @@ export default function App() {
               {t.analytics}
             </button>
             <button 
-              onClick={() => setActiveTab('calculator')}
-              className={`flex-shrink-0 px-3.5 py-2 rounded-lg ${activeTab === 'calculator' ? 'bg-white text-slate-950 font-black' : 'text-slate-400'}`}
-            >
-              {t.riskCalc}
-            </button>
-            <button 
               onClick={() => setActiveTab('notes')}
               className={`flex-shrink-0 px-3.5 py-2 rounded-lg ${activeTab === 'notes' ? 'bg-white text-slate-950 font-black' : 'text-slate-400'}`}
             >
@@ -983,6 +980,9 @@ export default function App() {
                   accountName={accountName}
                   startingBalance={startingBalance}
                   onSelectDay={handleSelectDayFilter} 
+                  onAddGoal={handleAddGoal}
+                  onEditGoal={handleEditGoal}
+                  onDeleteGoal={handleDeleteGoal}
                 />
               )}
 
@@ -1002,14 +1002,6 @@ export default function App() {
                   trades={trades} 
                   lang={lang} 
                   startingBalance={startingBalance}
-                />
-              )}
-
-              {activeTab === 'calculator' && (
-                <RiskCalculator 
-                  checklist={checklist} 
-                  lang={lang} 
-                  onUpdateChecklist={saveChecklistToStorage} 
                 />
               )}
 

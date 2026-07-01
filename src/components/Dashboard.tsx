@@ -17,7 +17,10 @@ import {
   ChevronRight, 
   Target,
   Zap,
-  Activity
+  Activity,
+  Edit2,
+  Trash2,
+  Plus
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { 
@@ -37,14 +40,76 @@ interface DashboardProps {
   accountName: string;
   startingBalance: number;
   onSelectDay?: (dateStr: string) => void;
+  onAddGoal?: (goal: TradingGoal) => void;
+  onEditGoal?: (goal: TradingGoal) => void;
+  onDeleteGoal?: (id: string) => void;
 }
 
-export default function Dashboard({ trades, goals, lang, accountName, startingBalance, onSelectDay }: DashboardProps) {
+export default function Dashboard({ 
+  trades, 
+  goals, 
+  lang, 
+  accountName, 
+  startingBalance, 
+  onSelectDay,
+  onAddGoal,
+  onEditGoal,
+  onDeleteGoal
+}: DashboardProps) {
   const t = translations[lang];
 
   // Current year/month state for calendar
   const [currentYear, setCurrentYear] = useState(2026);
   const [currentMonth, setCurrentMonth] = useState(5); // June (0-indexed is May, but let's use 5 for June 2026)
+
+  // Goal Management States
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<TradingGoal | null>(null);
+  const [goalTitle, setGoalTitle] = useState('');
+  const [goalTargetAmount, setGoalTargetAmount] = useState('');
+  const [goalCurrentProgress, setGoalCurrentProgress] = useState('0');
+  const [goalStartDate, setGoalStartDate] = useState('');
+  const [goalEndDate, setGoalEndDate] = useState('');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const handleSaveGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!goalTitle.trim()) return;
+    const targetVal = parseFloat(goalTargetAmount) || 0;
+    const progressVal = parseFloat(goalCurrentProgress) || 0;
+    
+    if (editingGoal) {
+      onEditGoal?.({
+        ...editingGoal,
+        title: goalTitle,
+        targetAmount: targetVal,
+        currentProgress: progressVal,
+        startDate: goalStartDate || todayStr,
+        endDate: goalEndDate || todayStr,
+        isCompleted: progressVal >= targetVal
+      });
+    } else {
+      const newGoal: TradingGoal = {
+        id: `g_${Date.now()}`,
+        title: goalTitle,
+        targetAmount: targetVal,
+        currentProgress: progressVal,
+        startDate: goalStartDate || todayStr,
+        endDate: goalEndDate || todayStr,
+        isCompleted: progressVal >= targetVal
+      };
+      onAddGoal?.(newGoal);
+    }
+    
+    setIsGoalModalOpen(false);
+    setEditingGoal(null);
+    setGoalTitle('');
+    setGoalTargetAmount('');
+    setGoalCurrentProgress('0');
+    setGoalStartDate('');
+    setGoalEndDate('');
+  };
 
   // 1. Calculations for Statistics
   const stats = useMemo(() => {
@@ -72,26 +137,7 @@ export default function Dashboard({ trades, goals, lang, accountName, startingBa
     const avgLoss = lostTrades.length > 0 ? totalLossAmount / lostTrades.length : 0;
 
     // Calculate R:R
-    let rrSum = 0;
-    let rrCount = 0;
-    trades.forEach(tr => {
-      if (tr.stopLoss && tr.takeProfit && tr.entryPrice) {
-        let risk = 0;
-        let reward = 0;
-        if (tr.direction === TradeDirection.LONG) {
-          risk = tr.entryPrice - tr.stopLoss;
-          reward = tr.takeProfit - tr.entryPrice;
-        } else {
-          risk = tr.stopLoss - tr.entryPrice;
-          reward = tr.entryPrice - tr.takeProfit;
-        }
-        if (risk > 0 && reward > 0) {
-          rrSum += (reward / risk);
-          rrCount++;
-        }
-      }
-    });
-    const avgPlannedRR = rrCount > 0 ? rrSum / rrCount : 0;
+    const avgPlannedRR = avgLoss > 0 ? avgWin / avgLoss : 0;
 
     const currentBalance = startingBalance + totalPnl;
     const growthPercentage = startingBalance > 0 ? (totalPnl / startingBalance) * 100 : 0;
@@ -534,6 +580,21 @@ export default function Dashboard({ trades, goals, lang, accountName, startingBa
               <Target size={18} className="text-amber-400" />
               <h2 className="text-base font-semibold text-slate-100">{t.tradingGoals}</h2>
             </div>
+            <button
+              onClick={() => {
+                setEditingGoal(null);
+                setGoalTitle('');
+                setGoalTargetAmount('');
+                setGoalCurrentProgress('0');
+                setGoalStartDate(new Date().toISOString().split('T')[0]);
+                setGoalEndDate(new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0]); // 1 week from now
+                setIsGoalModalOpen(true);
+              }}
+              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer"
+            >
+              <Plus size={14} />
+              <span>{lang === 'fa' ? 'هدف جدید' : 'New Goal'}</span>
+            </button>
           </div>
 
           <div className="space-y-4 flex-1 overflow-y-auto max-h-[350px] pr-1 scrollbar-thin">
@@ -556,9 +617,37 @@ export default function Dashboard({ trades, goals, lang, accountName, startingBa
                           {goal.startDate} - {goal.endDate}
                         </p>
                       </div>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${goal.isCompleted || percentage >= 100 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25' : 'bg-amber-500/10 text-amber-400 border border-amber-500/25'}`}>
-                        {goal.isCompleted || percentage >= 100 ? (lang === 'fa' ? 'تکمیل شده' : 'Completed') : (lang === 'fa' ? 'در جریان' : 'Active')}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingGoal(goal);
+                            setGoalTitle(goal.title);
+                            setGoalTargetAmount(goal.targetAmount.toString());
+                            setGoalCurrentProgress(goal.currentProgress.toString());
+                            setGoalStartDate(goal.startDate);
+                            setGoalEndDate(goal.endDate);
+                            setIsGoalModalOpen(true);
+                          }}
+                          className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition cursor-pointer"
+                          title={lang === 'fa' ? 'ویرایش هدف' : 'Edit Goal'}
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(lang === 'fa' ? 'آیا از حذف این هدف مطمئن هستید؟' : 'Are you sure you want to delete this goal?')) {
+                              onDeleteGoal?.(goal.id);
+                            }
+                          }}
+                          className="p-1 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded transition cursor-pointer"
+                          title={lang === 'fa' ? 'حذف هدف' : 'Delete Goal'}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${goal.isCompleted || percentage >= 100 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25' : 'bg-amber-500/10 text-amber-400 border border-amber-500/25'}`}>
+                          {goal.isCompleted || percentage >= 100 ? (lang === 'fa' ? 'تکمیل' : 'Done') : (lang === 'fa' ? 'جریان' : 'Active')}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="space-y-1">
@@ -581,6 +670,119 @@ export default function Dashboard({ trades, goals, lang, accountName, startingBa
         </div>
 
       </div>
+
+      {/* Goal Add/Edit Modal */}
+      {isGoalModalOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setIsGoalModalOpen(false)}
+        >
+          <div 
+            className={`bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md shadow-2xl p-6 md:p-8 space-y-4 max-h-[90vh] overflow-y-auto ${lang === 'fa' ? 'text-right' : 'text-left'}`}
+            onClick={(e) => e.stopPropagation()}
+            style={{ direction: lang === 'fa' ? 'rtl' : 'ltr' }}
+          >
+            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+              <h3 className="text-base font-bold text-slate-100">
+                {editingGoal 
+                  ? (lang === 'fa' ? 'ویرایش هدف معاملاتی' : 'Edit Trading Goal') 
+                  : (lang === 'fa' ? 'افزودن هدف معاملاتی جدید' : 'Add New Trading Goal')}
+              </h3>
+            </div>
+
+            <form onSubmit={handleSaveGoal} className="space-y-4 pt-2">
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                  {lang === 'fa' ? 'عنوان هدف:' : 'Goal Title:'}
+                </label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder={lang === 'fa' ? 'مثلاً: ۱۰٪ رشد حساب' : 'e.g. 10% account growth'}
+                  value={goalTitle}
+                  onChange={(e) => setGoalTitle(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-bold focus:outline-none focus:border-slate-700 transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                    {lang === 'fa' ? 'سود هدف ($):' : 'Target Profit ($):'}
+                  </label>
+                  <input 
+                    type="number" 
+                    required
+                    min="0"
+                    placeholder="1000"
+                    value={goalTargetAmount}
+                    onChange={(e) => setGoalTargetAmount(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                    {lang === 'fa' ? 'پیشرفت فعلی ($):' : 'Current Progress ($):'}
+                  </label>
+                  <input 
+                    type="number" 
+                    required
+                    placeholder="0"
+                    value={goalCurrentProgress}
+                    onChange={(e) => setGoalCurrentProgress(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                    {lang === 'fa' ? 'تاریخ شروع:' : 'Start Date:'}
+                  </label>
+                  <input 
+                    type="date" 
+                    required
+                    value={goalStartDate}
+                    onChange={(e) => setGoalStartDate(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                    {lang === 'fa' ? 'تاریخ پایان:' : 'End Date:'}
+                  </label>
+                  <input 
+                    type="date" 
+                    required
+                    value={goalEndDate}
+                    onChange={(e) => setGoalEndDate(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition uppercase tracking-wider cursor-pointer"
+                >
+                  {lang === 'fa' ? 'ذخیره هدف' : 'Save Goal'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsGoalModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-black rounded-xl text-xs transition uppercase tracking-wider cursor-pointer"
+                >
+                  {lang === 'fa' ? 'انصراف' : 'Cancel'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

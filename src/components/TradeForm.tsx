@@ -428,7 +428,7 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div>
                 {/* Quantity */}
                 <div>
                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{t.quantity} <span className="text-rose-400">*</span></label>
@@ -439,20 +439,7 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
                     placeholder="0.01"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value !== '' ? Number(e.target.value) : '')}
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
-                  />
-                </div>
-
-                {/* Leverage */}
-                <div>
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{t.leverage}</label>
-                  <input 
-                    type="number" 
-                    min="1"
-                    placeholder="1"
-                    value={leverage}
-                    onChange={(e) => setLeverage(Number(e.target.value))}
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
+                    className="keep-spin w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
                   />
                 </div>
               </div>
