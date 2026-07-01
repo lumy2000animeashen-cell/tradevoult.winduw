@@ -30,6 +30,7 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
   const [stopLoss, setStopLoss] = useState<number | ''>('');
   const [takeProfit, setTakeProfit] = useState<number | ''>('');
   const [pnl, setPnl] = useState<number>(0);
+  const [pnlInput, setPnlInput] = useState<string>('0');
   const [fee, setFee] = useState<number>(0);
   const [session, setSession] = useState<TradingSession>(TradingSession.LONDON);
   const [setup, setSetup] = useState('');
@@ -98,6 +99,7 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
       setStopLoss(trade.stopLoss ?? '');
       setTakeProfit(trade.takeProfit ?? '');
       setPnl(trade.pnl);
+      setPnlInput(trade.pnl.toString());
       setFee(trade.fee);
       setSession(trade.session);
       setSetup(trade.setup);
@@ -118,6 +120,8 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
         .slice(0, 16);
       setDateEntry(localISOString);
       setDateExit(localISOString);
+      setPnl(0);
+      setPnlInput('0');
       
       // Set default symbol
       if (availableSymbols.length > 0) {
@@ -126,42 +130,49 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
     }
   }, [trade, availableSymbols]);
 
-  // Automated P&L Calculation logic
-  useEffect(() => {
-    // Only calculate P&L if we have entry, exit, quantity, and state is NOT open
-    if (status === TradeStatus.OPEN) {
-      setPnl(0);
-      return;
-    }
+  // Removed Automated P&L Calculation logic to allow direct/manual P&L input only.
 
-    if (entryPrice !== '' && exitPrice !== '' && quantity !== '') {
-      const ep = Number(entryPrice);
-      const xp = Number(exitPrice);
-      const qty = Number(quantity);
-      const lev = Number(leverage || 1);
-
-      let calculatedPnl = 0;
-      if (direction === TradeDirection.LONG) {
-        calculatedPnl = (xp - ep) * qty * lev;
-      } else {
-        calculatedPnl = (ep - xp) * qty * lev;
+  // Helper to change status and adjust P&L sign accordingly
+  const handleSetStatus = (newStatus: TradeStatus) => {
+    setStatus(newStatus);
+    if (newStatus === TradeStatus.WON) {
+      const absolutePnl = Math.abs(pnl);
+      setPnl(absolutePnl);
+      let cleanedStr = pnlInput.replace(/^-/, '');
+      if (cleanedStr === '') cleanedStr = '0';
+      setPnlInput(cleanedStr);
+    } else if (newStatus === TradeStatus.LOST) {
+      const negativePnl = -Math.abs(pnl);
+      setPnl(negativePnl);
+      let cleanedStr = pnlInput;
+      if (!cleanedStr.startsWith('-')) {
+        cleanedStr = '-' + (cleanedStr === '0' ? '' : cleanedStr);
       }
-
-      // Format to 4 decimals max
-      calculatedPnl = Math.round(calculatedPnl * 10000) / 10000;
-
-      // Update P&L if different
-      setPnl(calculatedPnl);
+      setPnlInput(cleanedStr);
+    } else {
+      setPnl(0);
+      setPnlInput('0');
     }
-  }, [entryPrice, exitPrice, quantity, leverage, direction, fee, status]);
+  };
 
   // Adjust status based on P&L for closed trades
-  const handlePnlFieldChange = (val: number) => {
-    setPnl(val);
-    if (val >= 0) {
-      setStatus(TradeStatus.WON);
+  const handlePnlFieldChange = (valStr: string) => {
+    setPnlInput(valStr);
+    const parsed = parseFloat(valStr);
+    if (!isNaN(parsed)) {
+      setPnl(parsed);
+      if (parsed >= 0) {
+        setStatus(TradeStatus.WON);
+      } else {
+        setStatus(TradeStatus.LOST);
+      }
     } else {
-      setStatus(TradeStatus.LOST);
+      setPnl(0);
+      if (valStr.startsWith('-')) {
+        setStatus(TradeStatus.LOST);
+      } else {
+        setStatus(TradeStatus.WON);
+      }
     }
   };
 
@@ -379,14 +390,14 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
                 <div className="grid grid-cols-2 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 font-black text-[9px] uppercase tracking-wider">
                   <button 
                     type="button"
-                    onClick={() => { setStatus(TradeStatus.WON); }}
+                    onClick={() => { handleSetStatus(TradeStatus.WON); }}
                     className={`py-2 rounded-lg transition-all cursor-pointer ${status === TradeStatus.WON ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'text-slate-500 hover:text-slate-300'}`}
                   >
                     {lang === 'fa' ? 'سود ده' : 'Won'}
                   </button>
                   <button 
                     type="button"
-                    onClick={() => { setStatus(TradeStatus.LOST); }}
+                    onClick={() => { handleSetStatus(TradeStatus.LOST); }}
                     className={`py-2 rounded-lg transition-all cursor-pointer ${status === TradeStatus.LOST ? 'bg-rose-500/15 text-rose-400 border border-rose-500/20' : 'text-slate-500 hover:text-slate-300'}`}
                   >
                     {lang === 'fa' ? 'زیان ده' : 'Lost'}
@@ -454,10 +465,14 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
                   <div className="relative">
                     <span className="absolute left-2.5 top-2 text-slate-500 text-[10px] font-mono">$</span>
                     <input 
-                      type="number" 
-                      step="any"
-                      value={pnl}
-                      onChange={(e) => handlePnlFieldChange(Number(e.target.value))}
+                      type="text" 
+                      value={pnlInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
+                          handlePnlFieldChange(val);
+                        }
+                      }}
                       className={`w-full pl-6 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs font-black font-mono focus:outline-none focus:border-slate-700 ${
                         pnl > 0 ? 'text-emerald-400' : pnl < 0 ? 'text-rose-400' : 'text-slate-300'
                       }`}

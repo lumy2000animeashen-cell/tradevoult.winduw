@@ -58,9 +58,27 @@ export default function Dashboard({
 }: DashboardProps) {
   const t = translations[lang];
 
-  // Current year/month state for calendar
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(5); // June (0-indexed is May, but let's use 5 for June 2026)
+  // Current year/month state for calendar - dynamically defaults to the latest trade's year/month or current date's
+  const [currentYear, setCurrentYear] = useState(() => {
+    if (trades && trades.length > 0) {
+      const sorted = [...trades].sort((a, b) => b.dateEntry.localeCompare(a.dateEntry));
+      const parts = sorted[0].dateEntry.split('T')[0].split('-');
+      if (parts.length === 3) {
+        return parseInt(parts[0], 10);
+      }
+    }
+    return new Date().getFullYear();
+  });
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (trades && trades.length > 0) {
+      const sorted = [...trades].sort((a, b) => b.dateEntry.localeCompare(a.dateEntry));
+      const parts = sorted[0].dateEntry.split('T')[0].split('-');
+      if (parts.length === 3) {
+        return parseInt(parts[1], 10) - 1; // 0-indexed month
+      }
+    }
+    return new Date().getMonth();
+  });
 
   // Goal Management States
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
@@ -264,14 +282,21 @@ export default function Dashboard({
     // Map trades to dates of this month
     const dailyPnlMap: Record<number, { pnl: number, count: number }> = {};
     trades.forEach(tr => {
-      const tradeDate = new Date(tr.dateEntry);
-      if (tradeDate.getFullYear() === currentYear && tradeDate.getMonth() === currentMonth) {
-        const dayOfMonth = tradeDate.getDate();
-        if (!dailyPnlMap[dayOfMonth]) {
-          dailyPnlMap[dayOfMonth] = { pnl: 0, count: 0 };
+      if (!tr.dateEntry) return;
+      // Extract year, month, and day directly from the ISO-like date format "YYYY-MM-DD..." to prevent timezone offsets
+      const parts = tr.dateEntry.split('T')[0].split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // 0-indexed month
+        const day = parseInt(parts[2], 10);
+
+        if (year === currentYear && month === currentMonth) {
+          if (!dailyPnlMap[day]) {
+            dailyPnlMap[day] = { pnl: 0, count: 0 };
+          }
+          dailyPnlMap[day].pnl += tr.pnl || 0;
+          dailyPnlMap[day].count += 1;
         }
-        dailyPnlMap[dayOfMonth].pnl += tr.pnl;
-        dailyPnlMap[dayOfMonth].count += 1;
       }
     });
 

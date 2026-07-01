@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Trade, 
   DailyJournalEntry, 
@@ -34,6 +34,7 @@ import {
   FileSpreadsheet, 
   LayoutDashboard, 
   PlusCircle, 
+  Plus, 
   RotateCcw, 
   Languages,
   TrendingUp,
@@ -104,6 +105,17 @@ export default function App() {
   const [dailyEntries, setDailyEntries] = useState<DailyJournalEntry[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [goals, setGoals] = useState<TradingGoal[]>([]);
+
+  // Scroll tracking for floating action button
+  const [isAtBottom, setIsAtBottom] = useState(false);
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    // Check if scrolled near the bottom within 40px
+    const scrolledToBottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 40;
+    setIsAtBottom(scrolledToBottom);
+  };
 
   // Multi-Account States
   const [accounts, setAccounts] = useState<TradingAccount[]>(() => {
@@ -926,7 +938,7 @@ export default function App() {
         </nav>
 
         {/* SCREEN PANEL CONTAINER */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        <main ref={mainRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
           
           {/* Mobile Tab bar selection */}
           <div className="flex md:hidden gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 font-bold text-[10px] overflow-x-auto select-none mb-4">
@@ -1039,14 +1051,37 @@ export default function App() {
         </main>
       </div>
 
-      {/* FLOAT ADD NEW TRADE BUTTON FOR MOBILE ONLY */}
-      <button 
-        onClick={() => { setEditingTrade(null); setIsFormOpen(true); }}
-        className="md:hidden fixed bottom-6 right-6 h-12 w-12 bg-gradient-to-tr from-teal-500 to-indigo-600 text-slate-950 hover:from-teal-400 hover:to-indigo-500 rounded-full flex items-center justify-center shadow-2xl shadow-indigo-500/20 z-40 transition"
-        title={t.addNewTrade}
-      >
-        <PlusCircle size={24} className="stroke-[2.5]" />
-      </button>
+      {/* FLOATING ACTION BUTTONS (COMPACT + SCROLLED-UP, FULL TEXT AT BOTTOM-MOST) */}
+      <AnimatePresence>
+        {!isAtBottom && (
+          <motion.button 
+            key="compact-plus"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            onClick={() => { setEditingTrade(null); setIsFormOpen(true); }}
+            className={`fixed bottom-6 ${lang === 'fa' ? 'left-6' : 'right-6'} h-12 w-12 bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-full flex items-center justify-center shadow-2xl shadow-blue-500/30 z-40 transition cursor-pointer`}
+            title={t.addNewTrade}
+          >
+            <Plus size={24} className="stroke-[3]" />
+          </motion.button>
+        )}
+
+        {isAtBottom && (
+          <motion.button 
+            key="full-text"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            onClick={() => { setEditingTrade(null); setIsFormOpen(true); }}
+            className={`fixed bottom-6 ${lang === 'fa' ? 'left-6' : 'right-6'} flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black rounded-xl text-xs shadow-2xl shadow-blue-500/30 z-40 transition-all cursor-pointer uppercase tracking-wider`}
+            title={t.addNewTrade}
+          >
+            <Plus size={16} className="stroke-[3]" />
+            <span>{t.addNewTrade}</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* FORM DIALOG POPUP MODAL */}
       {isFormOpen && (
