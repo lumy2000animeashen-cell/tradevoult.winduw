@@ -739,7 +739,7 @@ export default function ExportImport({
           </div>
 
           <a 
-            href="mailto:support@tradejrnl.app"
+            href="mailto:tradejrnl.admin@gmail.com"
             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs transition-all cursor-pointer shadow-lg shadow-blue-900/20 uppercase tracking-wider self-start md:self-auto shrink-0"
           >
             <Mail size={14} />
