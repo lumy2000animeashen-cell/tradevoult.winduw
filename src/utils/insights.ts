@@ -253,46 +253,7 @@ export function detectFomoImpact(trades: Trade[], lang: 'fa' | 'en'): TradeInsig
   return null;
 }
 
-/**
- * Rule 5: Missing Stop Loss Danger
- * Trigger: Multiple closed trades without a Stop Loss
- */
-export function detectMissingStopLoss(trades: Trade[], lang: 'fa' | 'en'): TradeInsight | null {
-  const closedTrades = trades.filter(t => t.status !== TradeStatus.OPEN);
-  if (closedTrades.length === 0) return null;
 
-  // Ensure stopLoss field is part of the Trade model/objects.
-  // If the key doesn't exist in any trade object, we do not trigger this insight.
-  const hasSlField = closedTrades.some(t => 'stopLoss' in t);
-  if (!hasSlField) return null;
-
-  const noSlTrades = closedTrades.filter(t => {
-    return 'stopLoss' in t && (t.stopLoss === null || t.stopLoss === undefined);
-  });
-  if (noSlTrades.length === 0) return null;
-
-  const noSlCount = noSlTrades.length;
-  const noSlRatio = Math.round((noSlCount / closedTrades.length) * 100);
-
-  const sorted = [...noSlTrades].sort((a, b) => b.dateEntry.localeCompare(a.dateEntry));
-  const example = sorted[0];
-  const symbol = example.symbol.toUpperCase();
-  const date = example.dateEntry.split('T')[0];
-
-  if (noSlCount >= 2 || noSlRatio >= 20) {
-    return {
-      id: 'missing_sl',
-      type: 'error',
-      category: 'risk',
-      severity: 9.0,
-      text: lang === 'fa'
-        ? `ریسک مرگبار حساب: ${noSlCount} معامله (${noSlRatio}٪ کل تریدها) بدون حد ضرر ثبت شدند (مانند ${symbol} در تاریخ ${date}). عدم تعریف حد ضرر حساب شما را تهدید می‌کند.`
-        : `Catastrophic risk alert: ${noSlCount} trades (${noSlRatio}% of total) had no Stop Loss set (e.g., ${symbol} on ${date}). Always secure your entries to preserve capital.`
-    };
-  }
-
-  return null;
-}
 
 /**
  * Rule 6: Inconsistent Sizing
@@ -441,7 +402,6 @@ export function getTradingInsights(trades: Trade[], lang: 'fa' | 'en'): {
     detectOvertrading,
     detectStrategySynergy,
     detectFomoImpact,
-    detectMissingStopLoss,
     detectInconsistentSizing,
     detectLosingStrategy,
     detectEmotionalLeak,

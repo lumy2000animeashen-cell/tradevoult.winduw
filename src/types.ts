@@ -61,9 +61,8 @@ export interface Trade {
   exitPrice: number;      // قیمت خروج (اختیاری برای معاملات باز)
   quantity: number;       // حجم معامله / لات
   leverage: number;       // اهرم / ضریب (به عنوان مثال ۱ برای اسپات یا فارکس عادی)
-  stopLoss?: number;      // حد ضرر
-  takeProfit?: number;    // حد سود
   pnl: number;            // میزان سود یا زیان خالص (محاسبه دستی یا خودکار)
+  profit: number;         // میزان سود یا زیان به صورت دستی (همان PnL)
   fee: number;            // کارمزد معامله
   session: TradingSession; // سشن معاملاتی
   setup: string;          // استراتژی یا ستاپ معاملاتی (مثلا SMC, ICT, EMA, Support)
@@ -102,15 +101,6 @@ export interface TradingGoal {
   startDate: string;      // تاریخ شروع هدف
   endDate: string;        // تاریخ پایان هدف
   isCompleted: boolean;
-}
-
-export interface RiskCalculation {
-  accountBalance: number;  // موجودی کل حساب
-  riskPercentage: number;  // درصد ریسک معامله (مثلا ۱٪)
-  entryPrice: number;      // قیمت ورود به معامله
-  stopLoss: number;        // قیمت حد ضرر
-  positionSize: number;    // حجم محاسبه شده برای معامله
-  totalRiskedAmount: number; // کل مبلغ ریسک شده به دلار
 }
 
 export interface TradingAccount {

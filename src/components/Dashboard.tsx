@@ -159,36 +159,7 @@ export default function Dashboard({
     const avgWin = wonTrades.length > 0 ? totalWinAmount / wonTrades.length : 0;
     const avgLoss = lostTrades.length > 0 ? totalLossAmount / lostTrades.length : 0;
 
-    // Calculate exact R:R for each trade with both stopLoss and takeProfit present
-    let rrSum = 0;
-    let rrCount = 0;
-    
-    trades.forEach(tr => {
-      if (tr.entryPrice && tr.stopLoss && tr.takeProfit) {
-        const entry = Number(tr.entryPrice);
-        const sl = Number(tr.stopLoss);
-        const tp = Number(tr.takeProfit);
-        
-        let slDistance = 0;
-        let tpDistance = 0;
-        
-        if (tr.direction === TradeDirection.LONG) {
-          slDistance = entry - sl;
-          tpDistance = tp - entry;
-        } else {
-          slDistance = sl - entry;
-          tpDistance = entry - tp;
-        }
-        
-        if (slDistance > 0 && tpDistance > 0) {
-          const rr = tpDistance / slDistance;
-          rrSum += rr;
-          rrCount++;
-        }
-      }
-    });
-    
-    const avgPlannedRR = rrCount > 0 ? rrSum / rrCount : 0;
+    const avgPnlPerTrade = closedCount > 0 ? totalPnl / closedCount : 0;
 
     const currentBalance = startingBalance + totalPnl;
     const growthPercentage = startingBalance > 0 ? (totalPnl / startingBalance) * 100 : 0;
@@ -261,7 +232,7 @@ export default function Dashboard({
       profitFactor,
       avgWin,
       avgLoss,
-      avgPlannedRR,
+      avgPnlPerTrade,
       currentBalance,
       growthPercentage,
       bestAsset: bestAsset === '-' ? '-' : bestAsset.toUpperCase(),
@@ -586,20 +557,20 @@ export default function Dashboard({
           </p>
         </motion.div>
 
-        {/* Metric 4: Average Risk to Reward Ratio */}
+        {/* Metric 4: Average Profit Per Trade */}
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
           className="bg-slate-900 p-6 md:p-8 rounded-[24px] border border-slate-800/80 space-y-2 relative overflow-hidden flex flex-col justify-between"
-          id="metric_risk_to_reward"
+          id="metric_avg_profit"
         >
           <div>
             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1.5">
-              {lang === 'fa' ? 'میانگین ریسک به ریوارد' : 'AVG RISK : REWARD'}
+              {lang === 'fa' ? 'میانگین سود هر معامله' : 'AVG PROFIT PER TRADE'}
             </p>
-            <h2 className="text-2xl md:text-3xl font-black text-white leading-tight font-sans tracking-tight font-mono">
-              {stats.avgPlannedRR > 0 ? `1 : ${stats.avgPlannedRR.toFixed(1)}` : 'N/A'}
+            <h2 className={`text-2xl md:text-3xl font-black leading-tight font-sans tracking-tight font-mono ${stats.avgPnlPerTrade >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {stats.avgPnlPerTrade >= 0 ? '+' : ''}${stats.avgPnlPerTrade.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
             </h2>
           </div>
           <p className="text-[11px] text-slate-400 font-bold font-sans mt-3">
