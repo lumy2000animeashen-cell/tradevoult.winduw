@@ -1,6 +1,6 @@
 {
-  "name": "TradeVault",
-  "description": "TradeVault - A professional financial trading journal, calendar, dynamic analytics and psychology logger.",
+  "name": "TradeJrnl",
+  "description": "TradeJrnl - A professional financial trading journal, calendar, dynamic analytics and psychology logger.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

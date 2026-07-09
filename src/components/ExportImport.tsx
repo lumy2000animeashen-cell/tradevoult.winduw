@@ -18,7 +18,9 @@ import {
   Info,
   Lock,
   Unlock,
-  Trash2
+  Trash2,
+  Mail,
+  LifeBuoy
 } from 'lucide-react';
 
 interface ExportImportProps {
@@ -712,6 +714,37 @@ export default function ExportImport({
               </span>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* FULL WIDTH: Support Contact Section */}
+      <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4" id="settings_support_section">
+        <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
+          <LifeBuoy className="text-blue-400 h-5 w-5" />
+          <h2 className="text-base font-bold text-slate-100">
+            {lang === 'fa' ? 'پشتیبانی و ارتباط با ما' : 'Support & Assistance'}
+          </h2>
+        </div>
+        
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
+          <div className="space-y-1">
+            <p className="text-xs text-slate-400">
+              {lang === 'fa' 
+                ? 'در صورت داشتن هرگونه سوال، پیشنهاد یا بروز مشکل فنی در عملکرد ژورنال معاملاتی، از طریق ایمیل زیر با تیم پشتیبانی در ارتباط باشید:' 
+                : 'If you have any questions, suggestions, or technical difficulties with your trading journal, please contact our support desk:'}
+            </p>
+            <p className="text-[10px] text-slate-500 font-mono">
+              {lang === 'fa' ? 'پاسخگویی معمولاً در کمتر از ۲۴ ساعت کاری انجام می‌شود.' : 'Typical response time is under 24 business hours.'}
+            </p>
+          </div>
+
+          <a 
+            href="mailto:support@tradejrnl.app"
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs transition-all cursor-pointer shadow-lg shadow-blue-900/20 uppercase tracking-wider self-start md:self-auto shrink-0"
+          >
+            <Mail size={14} />
+            <span>{lang === 'fa' ? 'ارسال ایمیل به پشتیبانی' : 'Contact Support'}</span>
+          </a>
         </div>
       </div>
 

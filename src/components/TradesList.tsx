@@ -225,13 +225,13 @@ export default function TradesList({
           <thead>
             <tr className="border-b border-slate-800 text-slate-500 text-[10px] font-black uppercase tracking-widest select-none bg-slate-950/20">
               <th className="py-4 px-4 w-10">{/* Expand arrow */}</th>
-              <th className="py-4 px-3">{lang === 'fa' ? 'تاریخ و زمان' : 'DATE / TIME'}</th>
-              <th className="py-4 px-3">{t.symbol}</th>
-              <th className="py-4 px-3">{t.direction}</th>
-              <th className="py-4 px-3 font-mono">{lang === 'fa' ? 'قیمت ورود / خروج' : 'ENTRY / EXIT'}</th>
-              <th className="py-4 px-3 font-mono">{lang === 'fa' ? 'حجم × اهرم' : 'SIZE × LEV'}</th>
-              <th className="py-4 px-3 text-right font-mono">{t.pnl}</th>
-              <th className="py-4 px-3">{lang === 'fa' ? 'ستاپ / استراتژی' : 'STRATEGY'}</th>
+              <th className={`py-4 px-3 ${lang === 'fa' ? 'text-right' : 'text-left'}`}>{lang === 'fa' ? 'تاریخ و زمان' : 'DATE / TIME'}</th>
+              <th className={`py-4 px-3 ${lang === 'fa' ? 'text-right' : 'text-left'}`}>{t.symbol}</th>
+              <th className={`py-4 px-3 ${lang === 'fa' ? 'text-right' : 'text-left'}`}>{t.direction}</th>
+              <th className={`py-4 px-3 ${lang === 'fa' ? 'text-right' : 'text-left'} font-mono`}>{lang === 'fa' ? 'قیمت ورود / خروج' : 'ENTRY / EXIT'}</th>
+              <th className={`py-4 px-3 ${lang === 'fa' ? 'text-right' : 'text-left'} font-mono`}>{lang === 'fa' ? 'حجم × اهرم' : 'SIZE × LEV'}</th>
+              <th className={`py-4 px-3 font-mono ${lang === 'fa' ? 'text-left' : 'text-right'}`}>{t.pnl}</th>
+              <th className={`py-4 px-3 ${lang === 'fa' ? 'text-right' : 'text-left'}`}>{lang === 'fa' ? 'ستاپ / استراتژی' : 'STRATEGY'}</th>
               <th className="py-4 px-4 text-center">{lang === 'fa' ? 'عملیات' : 'ACTIONS'}</th>
             </tr>
           </thead>
@@ -252,9 +252,9 @@ export default function TradesList({
                 let directionColor = isLong ? 'text-emerald-400 bg-emerald-500/5' : 'text-rose-400 bg-rose-500/5';
                 
                 if (trade.status === TradeStatus.WON) {
-                  pnlColor = 'text-emerald-400 font-bold bg-emerald-500/5';
+                  pnlColor = 'text-emerald-450 font-bold bg-emerald-500/10 border-emerald-500/20';
                 } else if (trade.status === TradeStatus.LOST) {
-                  pnlColor = 'text-rose-400 font-bold bg-rose-500/5';
+                  pnlColor = 'text-rose-450 font-bold bg-rose-500/10 border-rose-500/20';
                 } else if (trade.status === TradeStatus.BREAKEVEN) {
                   pnlColor = 'text-slate-300 font-medium bg-slate-800/50';
                 }
@@ -278,10 +278,10 @@ export default function TradesList({
                       <td className="py-3.5 px-4 text-center">
                         {isExpanded ? <ChevronUp size={15} className="text-slate-500" /> : <ChevronDown size={15} className="text-slate-500" />}
                       </td>
-                      <td className="py-3.5 px-3 text-slate-300 text-xs font-mono font-medium">
+                      <td className={`py-3.5 px-3 text-slate-300 text-xs font-mono font-medium ${lang === 'fa' ? 'text-right' : 'text-left'}`}>
                         {dateStr}
                       </td>
-                      <td className="py-3.5 px-3 font-bold text-slate-100 tracking-wider uppercase font-mono">
+                      <td className={`py-3.5 px-3 font-bold text-slate-100 tracking-wider uppercase font-mono ${lang === 'fa' ? 'text-right' : 'text-left'}`}>
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1.5">
                             <span>{trade.symbol}</span>
@@ -299,13 +299,13 @@ export default function TradesList({
                           <span className="text-[10px] text-slate-500 font-normal mt-0.5">{getTranslatedAsset(trade.assetClass, lang)}</span>
                         </div>
                       </td>
-                      <td className="py-3.5 px-3">
+                      <td className={`py-3.5 px-3 ${lang === 'fa' ? 'text-right' : 'text-left'}`}>
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold font-mono border border-slate-800/40 ${directionColor}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${isLong ? 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.8)]' : 'bg-rose-400 shadow-[0_0_4px_rgba(251,113,133,0.8)]'}`}></span>
                           {lang === 'fa' ? (isLong ? 'خرید' : 'فروش') : trade.direction}
                         </span>
                       </td>
-                      <td className="py-3.5 px-3 font-mono text-xs text-slate-300">
+                      <td className={`py-3.5 px-3 font-mono text-xs text-slate-300 ${lang === 'fa' ? 'text-right' : 'text-left'}`}>
                         <div className="flex flex-col">
                           <span>${trade.entryPrice.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
                           {trade.exitPrice ? (
@@ -315,7 +315,7 @@ export default function TradesList({
                           )}
                         </div>
                       </td>
-                      <td className="py-3.5 px-3 font-mono text-xs text-slate-300">
+                      <td className={`py-3.5 px-3 font-mono text-xs text-slate-300 ${lang === 'fa' ? 'text-right' : 'text-left'}`}>
                         <div className="flex flex-col">
                           <span>{trade.quantity} <span className="text-[10px] text-slate-500">{trade.assetClass === AssetClass.FOREX ? (lang === 'fa' ? 'لات' : 'lot') : (lang === 'fa' ? 'واحد' : 'units')}</span></span>
                           {trade.leverage > 1 && (
@@ -323,12 +323,12 @@ export default function TradesList({
                           )}
                         </div>
                       </td>
-                      <td className="py-3.5 px-3 text-right">
-                        <div className={`inline-block px-3 py-1.5 rounded-lg text-xs font-bold font-mono border border-slate-800/30 ${pnlColor}`}>
+                      <td className={`py-3.5 px-3 ${lang === 'fa' ? 'text-left' : 'text-right'}`}>
+                        <div className={`inline-block px-3 py-1.5 rounded-lg text-xs font-bold font-mono border ${pnlColor}`}>
                           {trade.pnl > 0 ? '+' : ''}${trade.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </td>
-                      <td className="py-3.5 px-3 text-slate-300 font-medium text-xs">
+                      <td className={`py-3.5 px-3 text-slate-300 font-medium text-xs ${lang === 'fa' ? 'text-right' : 'text-left'}`}>
                         <div className="flex flex-col">
                           <span>{trade.setup || '-'}</span>
                           <span className="text-[10px] text-slate-500 mt-0.5 font-mono">{getTranslatedSession(trade.session, lang)}</span>
@@ -338,14 +338,14 @@ export default function TradesList({
                         <div className="flex justify-center gap-1.5">
                           <button 
                             onClick={() => onEditTrade(trade)}
-                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition cursor-pointer"
                             title={t.editTrade}
                           >
                             <Edit2 size={13} />
                           </button>
                           <button 
                             onClick={() => onDeleteTrade(trade.id)}
-                            className="p-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded-lg transition"
+                            className="p-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded-lg transition cursor-pointer"
                             title={t.delete}
                           >
                             <Trash2 size={13} />

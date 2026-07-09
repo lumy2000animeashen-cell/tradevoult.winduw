@@ -9,7 +9,7 @@ export type Language = 'fa' | 'en';
 
 export const translations = {
   fa: {
-    appName: 'ژورنال ترید حرفه‌ای',
+    appName: 'TradeJrnl',
     desktopVersion: 'نسخه دسکتاپ (ویندوز)',
     dashboard: 'داشبورد',
     trades: 'لیست معاملات',
@@ -182,7 +182,7 @@ export const translations = {
     winRateByAsset: 'نرخ برد به تفکیک بازارها'
   },
   en: {
-    appName: 'Pro Trading Journal',
+    appName: 'TradeJrnl',
     desktopVersion: 'Desktop Version (Windows)',
     dashboard: 'Dashboard',
     trades: 'Trades Ledger',

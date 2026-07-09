@@ -9,6 +9,145 @@
   }
 }
 
+/* Light Mode Styles */
+body.light {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Override background colors of panels, cards and modals */
+body.light .bg-slate-900,
+body.light [id$="_card"],
+body.light [id$="_panel"],
+body.light .bg-slate-900\/30,
+body.light .bg-slate-900\/40,
+body.light .bg-slate-950\/40,
+body.light .bg-slate-950\/80,
+body.light nav {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light header {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light nav {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Handle active/inactive navigation items */
+body.light nav button {
+  color: #475569 !important;
+}
+body.light nav button:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+body.light nav button.bg-white {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+}
+body.light nav button.bg-white svg {
+  color: #ffffff !important;
+}
+
+body.light nav div {
+  color: #64748b !important;
+}
+
+/* Modals and overlay dropdowns */
+body.light .bg-slate-950\/95,
+body.light .bg-slate-950\/90,
+body.light .bg-slate-900 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* General text overrides */
+body.light .text-slate-50,
+body.light .text-slate-100,
+body.light .text-slate-200,
+body.light .text-slate-300,
+body.light .text-white,
+body.light h1,
+body.light h2,
+body.light h3,
+body.light h4,
+body.light .font-black {
+  color: #0f172a !important;
+}
+
+body.light .text-slate-400 {
+  color: #475569 !important;
+}
+
+body.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+body.light .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+/* Sub-card elements */
+body.light .bg-slate-950\/20,
+body.light .bg-slate-800\/40,
+body.light .bg-slate-800\/30,
+body.light .bg-slate-800\/50,
+body.light .bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+body.light .bg-slate-800\/40:hover,
+body.light .bg-slate-800:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Inputs and interactive forms */
+body.light input,
+body.light select,
+body.light textarea {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+body.light input:focus,
+body.light select:focus,
+body.light textarea:focus {
+  border-color: #3b82f6 !important;
+}
+
+/* Border overrides */
+body.light .border-slate-800,
+body.light .border-slate-800\/40,
+body.light .border-slate-800\/60,
+body.light .border-slate-800\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Buttons in forms/modals */
+body.light button.bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+body.light button.bg-slate-800:hover {
+  background-color: #e2e8f0 !important;
+}
+
+/* Charts and tooltip containers */
+body.light .recharts-tooltip-wrapper .bg-slate-950\/95 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
 /* Custom Thin Scrollbar for desktop panels */
 ::-webkit-scrollbar {
   width: 6px;

@@ -455,6 +455,32 @@ export default function TradeForm({ trade, lang, onSave, onClose }: TradeFormPro
                 </div>
               </div>
 
+              {/* Stop Loss (SL) & Take Profit (TP) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{lang === 'fa' ? 'حد ضرر (SL)' : 'Stop Loss (SL)'}</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    placeholder="0.00"
+                    value={stopLoss}
+                    onChange={(e) => setStopLoss(e.target.value !== '' ? Number(e.target.value) : '')}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{lang === 'fa' ? 'حد سود (TP)' : 'Take Profit (TP)'}</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    placeholder="0.00"
+                    value={takeProfit}
+                    onChange={(e) => setTakeProfit(e.target.value !== '' ? Number(e.target.value) : '')}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs font-black font-mono focus:outline-none focus:border-slate-700 transition-all"
+                  />
+                </div>
+              </div>
+
 
 
               {/* Calculated Net PNL */}

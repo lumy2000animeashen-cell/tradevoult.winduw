@@ -39,7 +39,9 @@ import {
   Languages,
   TrendingUp,
   Clock,
-  Laptop
+  Laptop,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -98,6 +100,19 @@ const defaultGoals = (lang: Language): TradingGoal[] => {
 
 export default function App() {
   // 1. Core States
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('theme') as 'light' | 'dark') || 'dark';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    if (theme === 'light') {
+      document.body.classList.add('light');
+    } else {
+      document.body.classList.remove('light');
+    }
+  }, [theme]);
+
   const [lang, setLang] = useState<Language>('fa'); // Persian (Farsi) by default!
   const [activeTab, setActiveTab] = useState<'dashboard' | 'ledger' | 'analytics' | 'notes' | 'backup'>('dashboard');
   
@@ -785,7 +800,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080a0f] flex flex-col antialiased">
+    <div className={`min-h-screen flex flex-col antialiased ${theme === 'light' ? 'bg-slate-100 text-slate-800' : 'bg-[#080a0f] text-slate-100'}`}>
       
       {/* HEADER BAR */}
       <header className="bg-slate-900/40 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-6 py-4 flex justify-between items-center shadow-sm">
@@ -812,12 +827,22 @@ export default function App() {
             <Languages size={14} className="text-amber-400" />
             <span>{lang === 'fa' ? 'English (EN)' : 'فارسی (FA)'}</span>
           </button>
+
+          {/* Theme Switcher */}
+          <button 
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="p-2 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-lg transition-all flex items-center justify-center cursor-pointer"
+            id="theme_toggle"
+            title={lang === 'fa' ? 'تغییر پوسته / Switch Theme' : 'Toggle Theme'}
+          >
+            {theme === 'dark' ? <Sun size={14} className="text-amber-400" /> : <Moon size={14} className="text-indigo-400" />}
+          </button>
         </div>
 
-        {/* Branding Left/Right according to RTL (TRADEX. from Design HTML) */}
+        {/* Branding Left/Right according to RTL (TradeJrnl from Design HTML) */}
         <div className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : 'flex-row'}`}>
           <div className="text-2xl font-black tracking-tighter italic text-white font-sans select-none">
-            TRADEX.
+            TradeJrnl
           </div>
           <div className={`border-slate-800 h-6 hidden sm:block ${isRtl ? 'border-l mr-2' : 'border-r ml-2'}`}></div>
           <div className={isRtl ? 'text-right' : 'text-left'}>
@@ -995,6 +1020,7 @@ export default function App() {
                   onAddGoal={handleAddGoal}
                   onEditGoal={handleEditGoal}
                   onDeleteGoal={handleDeleteGoal}
+                  theme={theme}
                 />
               )}
 
@@ -1014,6 +1040,7 @@ export default function App() {
                   trades={trades} 
                   lang={lang} 
                   startingBalance={startingBalance}
+                  theme={theme}
                 />
               )}
 

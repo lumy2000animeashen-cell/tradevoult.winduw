@@ -20,9 +20,12 @@ import {
   Activity,
   Edit2,
   Trash2,
-  Plus
+  Plus,
+  Brain,
+  Sparkles
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getTradingInsights, getTraderProfile } from '../utils/insights';
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -43,6 +46,7 @@ interface DashboardProps {
   onAddGoal?: (goal: TradingGoal) => void;
   onEditGoal?: (goal: TradingGoal) => void;
   onDeleteGoal?: (id: string) => void;
+  theme?: 'light' | 'dark';
 }
 
 export default function Dashboard({ 
@@ -54,7 +58,8 @@ export default function Dashboard({
   onSelectDay,
   onAddGoal,
   onEditGoal,
-  onDeleteGoal
+  onDeleteGoal,
+  theme = 'dark'
 }: DashboardProps) {
   const t = translations[lang];
 
@@ -154,8 +159,36 @@ export default function Dashboard({
     const avgWin = wonTrades.length > 0 ? totalWinAmount / wonTrades.length : 0;
     const avgLoss = lostTrades.length > 0 ? totalLossAmount / lostTrades.length : 0;
 
-    // Calculate R:R
-    const avgPlannedRR = avgLoss > 0 ? avgWin / avgLoss : 0;
+    // Calculate exact R:R for each trade with both stopLoss and takeProfit present
+    let rrSum = 0;
+    let rrCount = 0;
+    
+    trades.forEach(tr => {
+      if (tr.entryPrice && tr.stopLoss && tr.takeProfit) {
+        const entry = Number(tr.entryPrice);
+        const sl = Number(tr.stopLoss);
+        const tp = Number(tr.takeProfit);
+        
+        let slDistance = 0;
+        let tpDistance = 0;
+        
+        if (tr.direction === TradeDirection.LONG) {
+          slDistance = entry - sl;
+          tpDistance = tp - entry;
+        } else {
+          slDistance = sl - entry;
+          tpDistance = entry - tp;
+        }
+        
+        if (slDistance > 0 && tpDistance > 0) {
+          const rr = tpDistance / slDistance;
+          rrSum += rr;
+          rrCount++;
+        }
+      }
+    });
+    
+    const avgPlannedRR = rrCount > 0 ? rrSum / rrCount : 0;
 
     const currentBalance = startingBalance + totalPnl;
     const growthPercentage = startingBalance > 0 ? (totalPnl / startingBalance) * 100 : 0;
@@ -347,31 +380,169 @@ export default function Dashboard({
     }
   };
 
+  const topInsight = useMemo(() => {
+    return getTradingInsights(trades, lang).topInsight;
+  }, [trades, lang]);
+
+  const traderProfile = useMemo(() => {
+    const profile = getTraderProfile(trades, lang);
+    return {
+      id: profile.type.toLowerCase().replace(' ', '_'),
+      name: profile.label,
+      description: profile.description,
+      color: profile.type === 'Disciplined' 
+        ? 'text-emerald-400 bg-emerald-950/10 border-emerald-500/20' 
+        : profile.type === 'Overtrader' 
+        ? 'text-amber-400 bg-amber-950/10 border-amber-500/20' 
+        : profile.type === 'Revenge Trader' 
+        ? 'text-rose-400 bg-rose-950/10 border-rose-500/20' 
+        : 'text-indigo-400 bg-indigo-950/10 border-indigo-500/20',
+      badgeColor: profile.type === 'Disciplined' 
+        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+        : profile.type === 'Overtrader' 
+        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+        : profile.type === 'Revenge Trader' 
+        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+        : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+      iconColor: profile.type === 'Disciplined' 
+        ? 'text-emerald-400' 
+        : profile.type === 'Overtrader' 
+        ? 'text-amber-400' 
+        : profile.type === 'Revenge Trader' 
+        ? 'text-rose-400' 
+        : 'text-indigo-400',
+      glowColor: profile.type === 'Disciplined' 
+        ? 'rgba(16, 185, 129, 0.15)' 
+        : profile.type === 'Overtrader' 
+        ? 'rgba(245, 158, 11, 0.15)' 
+        : profile.type === 'Revenge Trader' 
+        ? 'rgba(244, 63, 94, 0.15)' 
+        : 'rgba(99, 102, 241, 0.15)',
+      metricLabel: profile.metricLabel,
+      icon: profile.icon
+    };
+  }, [trades, lang]);
+
   const weekDaysFa = ['ی', 'د', 'س', 'چ', 'پ', 'ج', 'ش'];
   const weekDaysEn = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
   return (
     <div className="space-y-6" id="dashboard_panel">
+      {/* 0. Professional Dashboard Header and Trader Profile */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800/60" id="dashboard_header_section">
+        <div>
+          <h1 className="text-xl font-black tracking-tight text-white uppercase font-sans">
+            {lang === 'fa' ? 'پیشخوان معاملات' : 'PERFORMANCE DASHBOARD'}
+          </h1>
+          <p className="text-xs text-slate-400 font-bold mt-0.5">
+            {lang === 'fa' ? 'تحلیل لحظه‌ای عملکرد و روانشناسی تریدهای شما' : 'Real-time performance metrics and psychological profile'}
+          </p>
+        </div>
+
+        {/* Trader Profile Label */}
+        <div 
+          className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border ${traderProfile.color} transition-all duration-300`}
+          style={{ boxShadow: `0 4px 20px ${traderProfile.glowColor}` }}
+          id="trader_psychology_profile_label"
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-xl flex items-center justify-center shrink-0 ${traderProfile.badgeColor}`}>
+              <Brain className={`h-4.5 w-4.5 ${traderProfile.iconColor}`} />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 shrink-0">
+                  {lang === 'fa' ? 'پروفایل روانی' : 'BEHAVIORAL PROFILE'}
+                </span>
+                <span className="h-1 w-1 bg-slate-600 rounded-full shrink-0"></span>
+                <span className="text-xs font-black uppercase tracking-wider text-white shrink-0">
+                  {traderProfile.name}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-300 leading-normal mt-0.5 font-medium max-w-[280px]">
+                {traderProfile.description}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      {topInsight && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-6 md:p-8 rounded-[24px] border relative overflow-hidden ${
+            topInsight.type === 'error'
+              ? 'bg-gradient-to-br from-rose-950/20 to-slate-900 border-rose-500/20 text-rose-200'
+              : topInsight.type === 'warning'
+              ? 'bg-gradient-to-br from-amber-950/20 to-slate-900 border-amber-500/20 text-amber-200'
+              : 'bg-gradient-to-br from-emerald-950/20 to-slate-900 border-emerald-500/20 text-emerald-200'
+          }`}
+          id="dashboard_top_insight"
+        >
+          {/* Accent bar */}
+          <div className={`absolute top-0 bottom-0 ${lang === 'fa' ? 'right-0' : 'left-0'} w-1.5 ${
+            topInsight.type === 'error' ? 'bg-rose-500' : topInsight.type === 'warning' ? 'bg-amber-500' : 'bg-emerald-500'
+          }`} />
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center gap-2">
+                <div className={`p-2 rounded-xl flex items-center justify-center ${
+                  topInsight.type === 'error' ? 'bg-rose-500/15' : topInsight.type === 'warning' ? 'bg-amber-500/15' : 'bg-emerald-500/15'
+                }`}>
+                  <Brain className={`h-4.5 w-4.5 ${
+                    topInsight.type === 'error' ? 'text-rose-400' : topInsight.type === 'warning' ? 'text-amber-400' : 'text-emerald-400'
+                  }`} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    {lang === 'fa' ? 'پیشنهاد طلایی روانشناسی' : 'RECOMMENDED INSIGHT'}
+                  </span>
+                  <span className="text-slate-600 font-bold">•</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">
+                    {topInsight.category === 'psychology' ? (lang === 'fa' ? 'روانشناسی معامله‌گری' : 'PSYCHOLOGY') :
+                     topInsight.category === 'risk' ? (lang === 'fa' ? 'مدیریت ریسک' : 'RISK') :
+                     topInsight.category === 'setup' ? (lang === 'fa' ? 'ستاپ معاملاتی' : 'SETUP') :
+                     (lang === 'fa' ? 'انضباط فردی' : 'DISCIPLINE')}
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm sm:text-base font-bold leading-relaxed text-slate-100 font-sans">
+                {topInsight.text}
+              </p>
+            </div>
+            <div className="hidden lg:flex items-center justify-center shrink-0">
+              <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/40 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-400 animate-pulse" />
+                <span className="text-[10px] font-bold text-slate-400 tracking-wider">
+                  {lang === 'fa' ? 'پیشنهاد زنده فعال' : 'LIVE HIGHLIGHT'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* 1. Header Hero section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {/* Metric 1: Account & Current Balance */}
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden flex flex-col justify-between"
+          className="bg-slate-900 p-6 md:p-8 rounded-[24px] border border-slate-800/80 space-y-2 relative overflow-hidden flex flex-col justify-between"
           id="metric_current_balance"
         >
           <div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-black uppercase tracking-wider mb-1">
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1.5">
               <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></span>
               <span>{accountName || (lang === 'fa' ? 'نام حساب' : 'ACCOUNT')}</span>
             </div>
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-none font-sans tracking-tight">
+            <h2 className="text-2xl md:text-3xl font-black text-white leading-tight font-sans tracking-tight">
               ${stats.currentBalance.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
             </h2>
           </div>
-          <p className="text-[11px] text-slate-400 font-bold font-sans mt-3">
-            {lang === 'fa' ? 'سرمایه اولیه:' : 'Starting Cap:'} <span className="font-mono text-slate-200">${startingBalance.toLocaleString()}</span>
+          <p className="text-[11px] text-slate-500 font-bold font-sans mt-3">
+            {lang === 'fa' ? 'سرمایه اولیه:' : 'Starting Cap:'} <span className="font-mono text-slate-300">${startingBalance.toLocaleString()}</span>
           </p>
         </motion.div>
 
@@ -380,18 +551,18 @@ export default function Dashboard({
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden flex flex-col justify-between"
+          className="bg-slate-900 p-6 md:p-8 rounded-[24px] border border-slate-800/80 space-y-2 relative overflow-hidden flex flex-col justify-between"
           id="metric_total_profit"
         >
           <div>
-            <p className="text-xs text-slate-500 font-black uppercase tracking-wider mb-1">
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1.5">
               {lang === 'fa' ? 'سود یا زیان خالص' : 'NET PROFIT / LOSS'}
             </p>
-            <h2 className={`text-2xl md:text-3xl lg:text-4xl font-black leading-none font-sans tracking-tight ${stats.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+            <h2 className={`text-2xl md:text-3xl font-black leading-tight font-sans tracking-tight ${stats.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
               {stats.totalPnl >= 0 ? '+' : ''}${stats.totalPnl.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
             </h2>
           </div>
-          <p className={`text-[11px] font-bold font-mono mt-3 ${stats.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <p className={`text-[11px] font-bold font-sans mt-3 ${stats.totalPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {stats.totalPnl >= 0 ? '▲' : '▼'} {stats.growthPercentage.toFixed(2)}% {lang === 'fa' ? 'رشد کل' : 'ROI'}
           </p>
         </motion.div>
@@ -401,16 +572,16 @@ export default function Dashboard({
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden flex flex-col justify-between"
+          className="bg-slate-900 p-6 md:p-8 rounded-[24px] border border-slate-800/80 space-y-2 relative overflow-hidden flex flex-col justify-between"
           id="metric_win_rate"
         >
           <div>
-            <p className="text-xs text-slate-500 font-black uppercase tracking-wider mb-1">{t.winRate}</p>
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-none font-sans tracking-tight">
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1.5">{t.winRate}</p>
+            <h2 className="text-2xl md:text-3xl font-black text-white leading-tight font-sans tracking-tight">
               {stats.winRate.toFixed(1)}%
             </h2>
           </div>
-          <p className="text-[11px] text-slate-400 font-bold font-sans mt-3">
+          <p className="text-[11px] text-slate-500 font-bold font-sans mt-3">
             {lang === 'fa' ? 'فاکتور سود:' : 'Profit Factor:'} <span className="font-mono text-cyan-400 font-bold">{stats.profitFactor === 99.9 ? '∞' : stats.profitFactor.toFixed(2)}</span>
           </p>
         </motion.div>
@@ -420,15 +591,15 @@ export default function Dashboard({
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-800 space-y-1 relative overflow-hidden flex flex-col justify-between"
+          className="bg-slate-900 p-6 md:p-8 rounded-[24px] border border-slate-800/80 space-y-2 relative overflow-hidden flex flex-col justify-between"
           id="metric_risk_to_reward"
         >
           <div>
-            <p className="text-xs text-slate-500 font-black uppercase tracking-wider mb-1">
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1.5">
               {lang === 'fa' ? 'میانگین ریسک به ریوارد' : 'AVG RISK : REWARD'}
             </p>
-            <h2 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-none font-sans tracking-tight font-mono">
-              1 : {stats.avgPlannedRR > 0 ? stats.avgPlannedRR.toFixed(1) : '1.5'}
+            <h2 className="text-2xl md:text-3xl font-black text-white leading-tight font-sans tracking-tight font-mono">
+              {stats.avgPlannedRR > 0 ? `1 : ${stats.avgPlannedRR.toFixed(1)}` : 'N/A'}
             </h2>
           </div>
           <p className="text-[11px] text-slate-400 font-bold font-sans mt-3">
@@ -437,29 +608,7 @@ export default function Dashboard({
         </motion.div>
       </div>
 
-      {/* 2. Secondary stats grid */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{t.avgWin}</span>
-          <span className="text-sm font-black font-mono text-emerald-400">+${stats.avgWin.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-        </div>
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{t.avgLoss}</span>
-          <span className="text-sm font-black font-mono text-rose-400">-${stats.avgLoss.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-        </div>
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{t.streak}</span>
-          <span className="text-sm font-black text-indigo-400 font-sans">{stats.streak}</span>
-        </div>
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between">
-          <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{t.bestAsset}</span>
-          <span className="text-sm font-black font-mono text-cyan-400">{stats.bestAsset}</span>
-        </div>
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl col-span-2 md:col-span-1 flex flex-col justify-between">
-          <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{t.bestDay}</span>
-          <span className="text-sm font-black text-amber-400 font-sans">{stats.bestDay}</span>
-        </div>
-      </div>
+
 
       {/* Equity Curve Chart Card */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -473,7 +622,7 @@ export default function Dashboard({
           </div>
         </div>
         
-        <div className="h-[250px] w-full text-xs font-mono">
+        <div className="h-[180px] w-full text-xs font-mono">
           {equityData.length <= 1 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-500 italic gap-2">
               <TrendingUp size={24} className="opacity-30 text-slate-400" />
@@ -488,11 +637,13 @@ export default function Dashboard({
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="date" stroke="#64748b" />
-                <YAxis stroke="#64748b" domain={['auto', 'auto']} />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? '#cbd5e1' : '#1e293b'} />
+                <XAxis dataKey="date" stroke={theme === 'light' ? '#64748b' : '#475569'} />
+                <YAxis stroke={theme === 'light' ? '#64748b' : '#475569'} domain={['auto', 'auto']} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px' }}
+                  contentStyle={theme === 'light' 
+                    ? { backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '8px', color: '#0f172a' } 
+                    : { backgroundColor: '#020617', borderColor: '#1e293b', borderRadius: '8px', color: '#f8fafc' }}
                   labelClassName="text-slate-400 font-bold"
                 />
                 <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorEquityDashboard)" name={lang === 'fa' ? 'سرمایه ($)' : 'Equity ($)'} />
