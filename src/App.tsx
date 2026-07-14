@@ -138,24 +138,29 @@ export default function App() {
       try {
         const response = await fetch('/api/config');
         if (response.ok) {
-          const data = await response.json();
-          setRemoteConfig(data);
-          
-          const CURRENT_VERSION = '1.0.0';
-          const isOutdated = data.latest_version && data.latest_version !== CURRENT_VERSION;
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await response.json();
+            setRemoteConfig(data);
+            
+            const CURRENT_VERSION = '1.0.0';
+            const isOutdated = data.latest_version && data.latest_version !== CURRENT_VERSION;
 
-          if (data.app_status === 'disabled') {
-            setIsAppBlocked(true);
-            setBlockType('disabled');
-          } else if (data.force_update === true && isOutdated) {
-            setIsAppBlocked(true);
-            setBlockType('update');
-          }
+            if (data.app_status === 'disabled') {
+              setIsAppBlocked(true);
+              setBlockType('disabled');
+            } else if (data.force_update === true && isOutdated) {
+              setIsAppBlocked(true);
+              setBlockType('update');
+            }
 
-          if (data.message && typeof data.message === 'string' && data.message.trim() !== '') {
-            setNotificationMessage(data.message.trim());
+            if (data.message && typeof data.message === 'string' && data.message.trim() !== '') {
+              setNotificationMessage(data.message.trim());
+            } else {
+              setNotificationMessage(null);
+            }
           } else {
-            setNotificationMessage(null);
+            console.warn('Remote config returned non-JSON response, skipping setup.');
           }
         }
       } catch (error) {

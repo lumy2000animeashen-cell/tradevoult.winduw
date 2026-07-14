@@ -18,11 +18,28 @@ async function startServer() {
       if (!response.ok) {
         throw new Error(`Failed to fetch from remote server: ${response.status}`);
       }
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        console.warn("Remote config returned non-JSON response, using fallback.");
+        return res.json({
+          latest_version: "1.0.0",
+          force_update: false,
+          message: "",
+          app_status: "active"
+        });
+      }
       const data = await response.json();
       res.json(data);
     } catch (error: any) {
-      console.error("Proxy fetch error:", error);
-      res.status(502).json({ error: "Failed to connect to config API", details: error.message });
+      console.error("Proxy fetch error, returning fallback config:", error);
+      res.json({
+        latest_version: "1.0.0",
+        force_update: false,
+        message: "",
+        app_status: "active",
+        error: "Failed to connect to config API",
+        details: error.message
+      });
     }
   });
 
