@@ -152,8 +152,10 @@ export default function App() {
             setBlockType('update');
           }
 
-          if (data.message) {
-            setNotificationMessage(data.message);
+          if (data.message && typeof data.message === 'string' && data.message.trim() !== '') {
+            setNotificationMessage(data.message.trim());
+          } else {
+            setNotificationMessage(null);
           }
         }
       } catch (error) {
@@ -911,37 +913,7 @@ export default function App() {
   return (
     <div className={`min-h-screen flex flex-col antialiased ${theme === 'light' ? 'bg-slate-100 text-slate-800' : 'bg-[#080a0f] text-slate-100'}`}>
       
-      {/* REMOTE CONTROL NOTIFICATION TOAST */}
-      <AnimatePresence>
-        {notificationMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className={`fixed top-4 z-50 max-w-sm bg-slate-900/95 border border-slate-800 backdrop-blur-md p-4 rounded-2xl shadow-2xl space-y-2 text-xs font-sans ${
-              isRtl ? 'left-4' : 'right-4'
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-slate-800/60 pb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-amber-400 animate-pulse">📢</span>
-                <span className="font-bold text-slate-200 uppercase tracking-wider text-[10px]">
-                  {isRtl ? 'پیام سیستم' : 'System Notification'}
-                </span>
-              </div>
-              <button 
-                onClick={() => setNotificationMessage(null)}
-                className="text-slate-400 hover:text-white transition-all text-xs cursor-pointer bg-slate-800 hover:bg-slate-750 px-1.5 py-0.5 rounded-md"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-slate-300 leading-relaxed font-medium">
-              {notificationMessage}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* HEADER BAR */}
       <header className="bg-slate-900/40 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-6 py-4 flex justify-between items-center shadow-sm">
@@ -992,6 +964,53 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* REMOTE CONTROL TOP BANNER */}
+      <AnimatePresence>
+        {notificationMessage && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="overflow-hidden bg-slate-950/40 border-b border-slate-800/60"
+          >
+            <div className="max-w-[1600px] mx-auto px-6 py-3">
+              <div 
+                className="bg-emerald-950/20 border border-emerald-500/20 rounded-2xl p-4 shadow-lg shadow-emerald-950/5 flex items-center justify-between gap-4 relative overflow-hidden"
+                style={{ direction: isRtl ? 'rtl' : 'ltr' }}
+              >
+                {/* Light Green Left/Right Accent Line (emulating WPF border element) */}
+                <div className={`absolute top-0 bottom-0 w-1 bg-emerald-500/80 ${isRtl ? 'right-0' : 'left-0'}`} />
+                
+                {/* Banner Content Layout (emulating WPF Grid/StackPanel layout) */}
+                <div className={`flex items-center gap-4 w-full ${isRtl ? 'flex-row-reverse text-right pl-4 pr-1' : 'flex-row text-left pr-4 pl-1'}`}>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 text-sm shadow-inner shadow-emerald-500/5">
+                    📢
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-0.5">
+                      {isRtl ? 'پیام سیستم' : 'System Notification'}
+                    </p>
+                    <p className="text-xs text-slate-300 font-medium leading-relaxed font-sans">
+                      {notificationMessage}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Dismiss Close Button */}
+                <button
+                  onClick={() => setNotificationMessage(null)}
+                  className="p-1.5 rounded-lg bg-emerald-500/5 hover:bg-emerald-500/15 text-emerald-400/60 hover:text-emerald-400 border border-emerald-500/10 transition-all cursor-pointer shrink-0"
+                  title={isRtl ? 'بستن' : 'Dismiss'}
+                >
+                  <span className="text-xs font-bold block w-3.5 h-3.5 leading-3.5 text-center">✕</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* MAIN CONTAINER */}
       <div className="flex flex-1 overflow-hidden">
