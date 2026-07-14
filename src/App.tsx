@@ -121,6 +121,51 @@ export default function App() {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [goals, setGoals] = useState<TradingGoal[]>([]);
 
+  // Remote Control System States
+  const [remoteConfig, setRemoteConfig] = useState<{
+    latest_version: string;
+    force_update: boolean;
+    message: string;
+    app_status: string;
+  } | null>(null);
+  const [isAppBlocked, setIsAppBlocked] = useState<boolean>(false);
+  const [blockType, setBlockType] = useState<'disabled' | 'update' | null>(null);
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+
+  // Remote Control Startup Check
+  useEffect(() => {
+    const fetchRemoteConfig = async () => {
+      try {
+        const response = await fetch('https://journal.xo.je/wp-json/tradejrnl/v1/config');
+        if (response.ok) {
+          const data = await response.json();
+          setRemoteConfig(data);
+          
+          const CURRENT_VERSION = '1.0.0';
+          const isOutdated = data.latest_version && data.latest_version !== CURRENT_VERSION;
+
+          if (data.app_status === 'disabled') {
+            setIsAppBlocked(true);
+            setBlockType('disabled');
+          } else if (data.force_update === true && isOutdated) {
+            setIsAppBlocked(true);
+            setBlockType('update');
+          } else if (data.force_update === true) {
+            setIsAppBlocked(true);
+            setBlockType('update');
+          }
+
+          if (data.message) {
+            setNotificationMessage(data.message);
+          }
+        }
+      } catch (error) {
+        console.error('Remote config API not reachable, running normally:', error);
+      }
+    };
+    fetchRemoteConfig();
+  }, []);
+
   // Scroll tracking for floating action button
   const [isAtBottom, setIsAtBottom] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
@@ -772,6 +817,81 @@ export default function App() {
   const isRtl = lang === 'fa';
   const t = translations[lang];
 
+  if (isAppBlocked) {
+    if (blockType === 'disabled') {
+      return (
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center font-sans">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-6 shadow-2xl">
+            <div className="w-16 h-16 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center text-3xl mx-auto animate-pulse">
+              ⚠️
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-xl font-black text-white uppercase tracking-wider">
+                {lang === 'fa' ? 'دسترسی مسدود شد' : 'Access Suspended'}
+              </h1>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                {lang === 'fa' 
+                  ? 'این نرم‌افزار غیرفعال شده است. لطفا با پشتیبانی تماس بگیرید.' 
+                  : 'This application has been deactivated. Please contact support.'}
+              </p>
+              {remoteConfig?.message && (
+                <div className="bg-slate-950/50 border border-slate-800 p-3 rounded-xl text-xs font-mono text-amber-400/90 text-center">
+                  {remoteConfig.message}
+                </div>
+              )}
+            </div>
+            <button 
+              onClick={() => {
+                try {
+                  window.close();
+                } catch(e) {}
+                document.body.innerHTML = '';
+              }}
+              className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-rose-900/20"
+            >
+              {lang === 'fa' ? 'خروج از برنامه' : 'Exit Application'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (blockType === 'update') {
+      return (
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 text-center font-sans">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-6 shadow-2xl">
+            <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-2xl flex items-center justify-center text-3xl mx-auto animate-bounce">
+              🔄
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-xl font-black text-white uppercase tracking-wider">
+                {lang === 'fa' ? 'بروزرسانی اجباری' : 'Force Update Required'}
+              </h1>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                {lang === 'fa'
+                  ? `نسخه جدیدی از برنامه در دسترس است (${remoteConfig?.latest_version}). برای ادامه کار باید برنامه خود را بروزرسانی کنید.`
+                  : `A new version of the app is available (${remoteConfig?.latest_version}). You must update your application to continue.`}
+              </p>
+              {remoteConfig?.message && (
+                <div className="bg-slate-950/50 border border-slate-800 p-3 rounded-xl text-xs font-mono text-cyan-400/90 text-center">
+                  {remoteConfig.message}
+                </div>
+              )}
+            </div>
+            <a 
+              href="https://journal.xo.je"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-blue-900/20 text-center"
+            >
+              {lang === 'fa' ? 'دریافت نسخه جدید' : 'Download Latest Version'}
+            </a>
+          </div>
+        </div>
+      );
+    }
+  }
+
   if (isLocked && passcode) {
     return (
       <LockScreen 
@@ -794,6 +914,38 @@ export default function App() {
   return (
     <div className={`min-h-screen flex flex-col antialiased ${theme === 'light' ? 'bg-slate-100 text-slate-800' : 'bg-[#080a0f] text-slate-100'}`}>
       
+      {/* REMOTE CONTROL NOTIFICATION TOAST */}
+      <AnimatePresence>
+        {notificationMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={`fixed top-4 z-50 max-w-sm bg-slate-900/95 border border-slate-800 backdrop-blur-md p-4 rounded-2xl shadow-2xl space-y-2 text-xs font-sans ${
+              isRtl ? 'left-4' : 'right-4'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-800/60 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-amber-400 animate-pulse">📢</span>
+                <span className="font-bold text-slate-200 uppercase tracking-wider text-[10px]">
+                  {isRtl ? 'پیام سیستم' : 'System Notification'}
+                </span>
+              </div>
+              <button 
+                onClick={() => setNotificationMessage(null)}
+                className="text-slate-400 hover:text-white transition-all text-xs cursor-pointer bg-slate-800 hover:bg-slate-750 px-1.5 py-0.5 rounded-md"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-slate-300 leading-relaxed font-medium">
+              {notificationMessage}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* HEADER BAR */}
       <header className="bg-slate-900/40 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-6 py-4 flex justify-between items-center shadow-sm">
         <div className={`flex items-center gap-3.5 ${isRtl ? 'flex-row' : 'flex-row-reverse'}`}>
