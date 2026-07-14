@@ -136,7 +136,7 @@ export default function App() {
   useEffect(() => {
     const fetchRemoteConfig = async () => {
       try {
-        const response = await fetch('https://journal.xo.je/wp-json/tradejrnl/v1/config');
+        const response = await fetch('/api/config');
         if (response.ok) {
           const data = await response.json();
           setRemoteConfig(data);
@@ -148,9 +148,6 @@ export default function App() {
             setIsAppBlocked(true);
             setBlockType('disabled');
           } else if (data.force_update === true && isOutdated) {
-            setIsAppBlocked(true);
-            setBlockType('update');
-          } else if (data.force_update === true) {
             setIsAppBlocked(true);
             setBlockType('update');
           }
