@@ -3,15 +3,34 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "author": "TradeVault Development Team",
   "license": "MIT",
   "homepage": "https://tradevault.app",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build:desktop": "npm run build && electron-builder --win",
     "start": "node dist/server.cjs",
-    "clean": "rm -rf dist server.js",
+    "electron:start": "electron .",
+    "clean": "rm -rf dist server.js dist-desktop",
     "lint": "tsc --noEmit"
+  },
+  "build": {
+    "appId": "com.tradevault.tradejrnl",
+    "productName": "TradeJrnl",
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "electron/assets/icon.png"
+    }
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -29,6 +48,8 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
