@@ -136,7 +136,7 @@ export default function App() {
   useEffect(() => {
     const fetchRemoteConfig = async () => {
       try {
-        const response = await fetch('/api/config');
+        const response = await fetch('https://journal.xo.je/wp-json/tradejrnl/v1/config');
         if (response.ok) {
           const contentType = response.headers.get('content-type');
           if (contentType && contentType.includes('application/json')) {
